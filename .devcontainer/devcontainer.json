@@ -1,0 +1,27 @@
+{
+  "name": "Minecraft NeoForge 1.21.1",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "vscjava.vscode-java-pack",
+        "redhat.java",
+        "vscjava.vscode-gradle"
+      ],
+      "settings": {
+        "java.configuration.updateBuildConfiguration": "automatic",
+        "java.jdt.ls.vmargs": "-Xmx4G"
+      }
+    }
+  },
+  "mounts": [
+    "source=${localWorkspaceFolder},target=/workspace,type=bind"
+  ],
+  "workspaceFolder": "/workspace",
+  "postCreateCommand": "cd /workspace && ./gradlew --no-daemon dependencies || true",
+  "remoteEnv": {
+    "JAVA_HOME": "/usr/lib/jvm/java-21-openjdk-amd64"
+  }
+}
