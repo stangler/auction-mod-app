@@ -90,6 +90,11 @@ public class FleaMarketScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(GuiGraphics gfx, int mouseX, int mouseY, float partialTick) {
+        gfx.fill(0, 0, this.width, this.height, 0xC0101018);
+    }
+
+    @Override
     public void render(GuiGraphics gfx, int mouseX, int mouseY, float delta) {
         this.renderBackground(gfx, mouseX, mouseY, delta);
 

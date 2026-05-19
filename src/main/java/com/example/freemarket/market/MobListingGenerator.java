@@ -1,6 +1,8 @@
 package com.example.freemarket.market;
 
 import com.example.freemarket.FreeMarketMod;
+import com.example.freemarket.auction.AuctionListing;
+import com.example.freemarket.auction.AuctionSavedData;
 import com.example.freemarket.data.MarketSavedData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
@@ -29,6 +31,15 @@ public class MobListingGenerator {
         new MobListing("村人D", new ItemStack(Items.ENCHANTING_TABLE), 5000)
     );
 
+    // オークション初期出品（終了まで1時間）
+    private static final long AUCTION_DURATION_MS = 60 * 60 * 1000L;
+    private static final List<MobListing> AUCTION_LISTINGS = List.of(
+        new MobListing("スティーブ", new ItemStack(Items.NETHERITE_INGOT),      5000),
+        new MobListing("アレックス", new ItemStack(Items.ELYTRA),              20000),
+        new MobListing("村人A",     new ItemStack(Items.DIAMOND_SWORD),        3000),
+        new MobListing("村人B",     new ItemStack(Items.SHULKER_BOX),          2000)
+    );
+
     @SubscribeEvent
     public static void onWorldLoad(LevelEvent.Load event) {
         if (!(event.getLevel() instanceof ServerLevel level)) return;
@@ -42,6 +53,15 @@ public class MobListingGenerator {
             FreeMarketMod.LOGGER.info("FreeMarket: モブ初期出品 {}件登録",
                 STARTER_LISTINGS.size() + VILLAGER_LISTINGS.size());
         }
+
+        // オークション初期出品（アクティブ出品ゼロの時のみ）
+        AuctionSavedData auctionData = AuctionSavedData.get(level);
+        boolean hasActiveAuction = auctionData.getAll().stream().anyMatch(l -> !l.isExpired());
+        if (!hasActiveAuction) {
+            addAuctionListings(auctionData, AUCTION_LISTINGS);
+            FreeMarketMod.LOGGER.info("FreeMarket: オークション初期出品 {}件登録",
+                AUCTION_LISTINGS.size());
+        }
     }
 
     private static void addListings(MarketSavedData data, List<MobListing> templates) {
@@ -49,6 +69,15 @@ public class MobListingGenerator {
             UUID mobId = UUID.nameUUIDFromBytes(t.sellerName().getBytes());
             data.addListing(new MarketListing(
                 UUID.randomUUID(), t.sellerName(), mobId, t.item(), t.price()
+            ));
+        }
+    }
+
+    private static void addAuctionListings(AuctionSavedData data, List<MobListing> templates) {
+        for (MobListing t : templates) {
+            UUID mobId = UUID.nameUUIDFromBytes(t.sellerName().getBytes());
+            data.addListing(new AuctionListing(
+                mobId, t.sellerName(), t.item(), t.price(), AUCTION_DURATION_MS
             ));
         }
     }

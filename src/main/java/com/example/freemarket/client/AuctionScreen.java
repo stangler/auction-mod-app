@@ -94,6 +94,12 @@ public class AuctionScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(GuiGraphics gfx, int mouseX, int mouseY, float partialTick) {
+        // ぼかし（被写界深度）を無効化し、半透明黒背景に置き換え
+        gfx.fill(0, 0, this.width, this.height, 0xC0101018);
+    }
+
+    @Override
     public void render(GuiGraphics gfx, int mouseX, int mouseY, float delta) {
         this.renderBackground(gfx, mouseX, mouseY, delta);
 
