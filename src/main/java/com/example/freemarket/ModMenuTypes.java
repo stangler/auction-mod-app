@@ -1,5 +1,6 @@
 package com.example.freemarket;
 
+import com.example.freemarket.auction.AuctionMenu;
 import com.example.freemarket.market.FleaMarketMenu;
 import net.minecraft.world.inventory.MenuType;
 import net.neoforged.bus.api.IEventBus;
@@ -16,6 +17,11 @@ public class ModMenuTypes {
     public static final DeferredHolder<MenuType<?>, MenuType<FleaMarketMenu>> FLEA_MARKET =
         MENUS.register("flea_market",
             () -> IMenuTypeExtension.create(FleaMarketMenu::new));
+
+    // ★ 追加
+    public static final DeferredHolder<MenuType<?>, MenuType<AuctionMenu>> AUCTION =
+        MENUS.register("auction",
+            () -> IMenuTypeExtension.create(AuctionMenu::new));
 
     public static void register(IEventBus bus) {
         MENUS.register(bus);

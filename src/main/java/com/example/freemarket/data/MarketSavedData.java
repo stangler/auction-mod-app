@@ -9,6 +9,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.saveddata.SavedData;
 
 import java.util.*;
+import java.util.HashSet;
 
 public class MarketSavedData extends SavedData {
 
@@ -16,6 +17,7 @@ public class MarketSavedData extends SavedData {
 
     private final Map<UUID, MarketListing> listings = new LinkedHashMap<>();
     private final Map<UUID, Long> balances = new HashMap<>();
+    private final Set<UUID> bonusReceived = new HashSet<>();
 
     // =========================================================
     // Factory (1.21.1 API)
@@ -88,6 +90,19 @@ public class MarketSavedData extends SavedData {
     }
 
     // =========================================================
+    // 初回ボーナス管理
+    // =========================================================
+
+    public boolean hasReceivedBonus(UUID playerId) {
+        return bonusReceived.contains(playerId);
+    }
+
+    public void markBonusReceived(UUID playerId) {
+        bonusReceived.add(playerId);
+        setDirty();
+    }
+
+    // =========================================================
     // NBT (1.21.1: save takes HolderLookup.Provider)
     // =========================================================
 
@@ -100,6 +115,15 @@ public class MarketSavedData extends SavedData {
         CompoundTag balancesTag = new CompoundTag();
         balances.forEach((uuid, bal) -> balancesTag.putLong(uuid.toString(), bal));
         tag.put("balances", balancesTag);
+
+        // 初回ボーナス受取済みUUID一覧
+        ListTag bonusTag = new ListTag();
+        for (UUID uuid : bonusReceived) {
+            CompoundTag entry = new CompoundTag();
+            entry.putUUID("uuid", uuid);
+            bonusTag.add(entry);
+        }
+        tag.put("bonusReceived", bonusTag);
 
         return tag;
     }
@@ -116,6 +140,11 @@ public class MarketSavedData extends SavedData {
         CompoundTag balancesTag = tag.getCompound("balances");
         for (String key : balancesTag.getAllKeys()) {
             data.balances.put(UUID.fromString(key), balancesTag.getLong(key));
+        }
+
+        ListTag bonusTag = tag.getList("bonusReceived", Tag.TAG_COMPOUND);
+        for (int i = 0; i < bonusTag.size(); i++) {
+            data.bonusReceived.add(bonusTag.getCompound(i).getUUID("uuid"));
         }
 
         return data;

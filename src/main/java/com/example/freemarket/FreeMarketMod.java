@@ -1,7 +1,9 @@
 package com.example.freemarket;
 
 import com.example.freemarket.auction.AuctionTickHandler;
+import com.example.freemarket.command.AuctionCommand;
 import com.example.freemarket.command.MarketCommand;
+import com.example.freemarket.event.PlayerLoginHandler;
 import com.example.freemarket.network.ModNetwork;
 import com.mojang.logging.LogUtils;
 import net.neoforged.bus.api.IEventBus;
@@ -25,7 +27,8 @@ public class FreeMarketMod {
         modEventBus.addListener(this::commonSetup);
 
         NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
-        NeoForge.EVENT_BUS.register(new AuctionTickHandler()); // ← 追加
+        NeoForge.EVENT_BUS.register(new AuctionTickHandler());
+        NeoForge.EVENT_BUS.register(new PlayerLoginHandler()); // ← 初回ボーナス
     }
 
     private void commonSetup(FMLCommonSetupEvent event) {
@@ -34,6 +37,7 @@ public class FreeMarketMod {
 
     private void onRegisterCommands(RegisterCommandsEvent event) {
         MarketCommand.register(event.getDispatcher());
-        LOGGER.info("FreeMarket: /market コマンド登録");
+        AuctionCommand.register(event.getDispatcher());
+        LOGGER.info("FreeMarket: /market /auction コマンド登録");
     }
 }

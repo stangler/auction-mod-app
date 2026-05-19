@@ -1,6 +1,7 @@
 package com.example.freemarket.auction;
 
 import com.example.freemarket.data.MarketSavedData;
+import com.example.freemarket.network.ModNetwork;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -29,6 +30,11 @@ public class AuctionTickHandler {
 
         for (AuctionListing listing : expired) {
             settle(listing, level, auctionData, marketData);
+        }
+
+        // 落札/流札処理後、オンライン全員にオークション一覧を再sync
+        for (ServerPlayer player : level.getServer().getPlayerList().getPlayers()) {
+            ModNetwork.syncAuctionToPlayer(player, auctionData, marketData);
         }
     }
 
