@@ -1,6 +1,7 @@
 package com.example.freemarket.command;
 
 import com.example.freemarket.data.MarketSavedData;
+import com.example.freemarket.network.ModNetwork;
 import com.example.freemarket.network.payload.OpenMarketPayload;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.LongArgumentType;
@@ -19,7 +20,11 @@ public class MarketCommand {
             .then(Commands.literal("open")
                 .executes(ctx -> {
                     if (!(ctx.getSource().getEntity() instanceof ServerPlayer sp)) return 0;
+                    // GUI表示命令
                     PacketDistributor.sendToPlayer(sp, new OpenMarketPayload());
+                    // 出品一覧＋残高を即座に同期（画面表示直後にデータが届く）
+                    MarketSavedData data = MarketSavedData.get(sp.serverLevel());
+                    ModNetwork.syncListingsToPlayer(sp, data);
                     return 1;
                 })
             )
