@@ -2,6 +2,7 @@ package com.example.freemarket.auction;
 
 import com.example.freemarket.FreeMarketMod;
 import com.example.freemarket.data.MarketSavedData;
+import com.example.freemarket.market.MobListingGenerator;
 import com.example.freemarket.network.ModNetwork;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -14,7 +15,7 @@ import java.util.UUID;
 
 public class AuctionTickHandler {
 
-    private static final int CHECK_INTERVAL = 100; // ticks（5秒）
+    private static final int CHECK_INTERVAL = 100;
     private int ticker = 0;
 
     @SubscribeEvent
@@ -35,16 +36,15 @@ public class AuctionTickHandler {
             settle(listing, level, auctionData, marketData);
         }
 
-        // 落札/流札処理後、オンライン全員にオークション一覧を再sync
+        // ★ モブ出品の自動補充（落札/流札で減った分を補う）
+        MobListingGenerator.replenishAuctionIfNeeded(auctionData);
+
+        // 全員にオークション一覧を再sync
         for (ServerPlayer player : level.getServer().getPlayerList().getPlayers()) {
             ModNetwork.syncAuctionToPlayer(player, auctionData, marketData);
         }
     }
 
-    /**
-     * MobListingGenerator はモブのUUIDを UUID.nameUUIDFromBytes(name) で生成する。
-     * この値と一致すれば「モブ出品」と判定できる。
-     */
     private static boolean isMobSeller(AuctionListing listing) {
         UUID mobUUID = UUID.nameUUIDFromBytes(listing.sellerName.getBytes());
         return listing.sellerUUID.equals(mobUUID);
@@ -56,12 +56,10 @@ public class AuctionTickHandler {
                         MarketSavedData marketData) {
 
         if (listing.hasBid()) {
-            // ── 落札処理 ─────────────────────────────────────────
             ServerPlayer winner = level.getServer()
                     .getPlayerList().getPlayerByName(listing.topBidderName);
 
             if (winner != null) {
-                // オンライン: 即渡し
                 if (!winner.getInventory().add(listing.stack.copy())) {
                     winner.drop(listing.stack.copy(), false);
                 }
@@ -69,9 +67,7 @@ public class AuctionTickHandler {
                 winner.sendSystemMessage(Component.literal(
                     "[FreeMarket] 落札アイテムを受け取りました: " +
                     listing.stack.getHoverName().getString()));
-
             } else {
-                // オフライン: ProfileCache でUUID解決 → 代金徴収＋未渡しキューへ
                 level.getServer().getProfileCache()
                         .get(listing.topBidderName)
                         .ifPresentOrElse(
@@ -89,24 +85,18 @@ public class AuctionTickHandler {
                         );
             }
 
-            // 出品者に代金付与（モブ・実プレイヤー共通）
             marketData.addBalance(listing.sellerUUID, listing.currentBid);
 
         } else {
-            // ── 流札処理 ─────────────────────────────────────────
             if (isMobSeller(listing)) {
-                // モブ出品の流札はアイテム破棄（返却先なし）
                 FreeMarketMod.LOGGER.info(
                     "[FreeMarket] 流札（モブ出品）破棄: {}",
                     listing.stack.getHoverName().getString());
-
             } else {
-                // 実プレイヤー出品の流札はアイテム返却
                 ServerPlayer seller = level.getServer()
                         .getPlayerList().getPlayerByName(listing.sellerName);
 
                 if (seller != null) {
-                    // オンライン: 即返却
                     if (!seller.getInventory().add(listing.stack.copy())) {
                         seller.drop(listing.stack.copy(), false);
                     }
@@ -114,7 +104,6 @@ public class AuctionTickHandler {
                         "[FreeMarket] 流札のため返却: " +
                         listing.stack.getHoverName().getString()));
                 } else {
-                    // オフライン: 未渡しキューへ返却
                     level.getServer().getProfileCache()
                             .get(listing.sellerName)
                             .ifPresentOrElse(

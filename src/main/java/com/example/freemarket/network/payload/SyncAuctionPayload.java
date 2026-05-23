@@ -51,7 +51,29 @@ public record SyncAuctionPayload(
         return TYPE;
     }
 
-    /** AuctionListing の転送用軽量版 */
+    // =========================================================
+    // BidHistoryEntry — 入札履歴の1件分（DTO転送用）
+    // =========================================================
+    public record BidHistoryEntry(String bidderName, long amount, long timestampMs) {
+
+        public void encode(FriendlyByteBuf buf) {
+            buf.writeUtf(bidderName);
+            buf.writeLong(amount);
+            buf.writeLong(timestampMs);
+        }
+
+        public static BidHistoryEntry decode(FriendlyByteBuf buf) {
+            return new BidHistoryEntry(
+                buf.readUtf(),
+                buf.readLong(),
+                buf.readLong()
+            );
+        }
+    }
+
+    // =========================================================
+    // AuctionDto — AuctionListing の転送用軽量版
+    // =========================================================
     public record AuctionDto(
         UUID listingId,
         String sellerName,
@@ -60,7 +82,8 @@ public record SyncAuctionPayload(
         long startPrice,
         long currentBid,
         String topBidderName,
-        long endTimeMs
+        long endTimeMs,
+        List<BidHistoryEntry> bidHistory   // ★ 追加
     ) {
         public void encode(FriendlyByteBuf buf) {
             buf.writeUUID(listingId);
@@ -71,22 +94,41 @@ public record SyncAuctionPayload(
             buf.writeLong(currentBid);
             buf.writeUtf(topBidderName);
             buf.writeLong(endTimeMs);
+            // ★ 入札履歴
+            buf.writeVarInt(bidHistory.size());
+            for (BidHistoryEntry e : bidHistory) {
+                e.encode(buf);
+            }
         }
 
         public static AuctionDto decode(FriendlyByteBuf buf) {
+            UUID   listingId     = buf.readUUID();
+            String sellerName    = buf.readUtf();
+            String itemName      = buf.readUtf();
+            int    itemCount     = buf.readVarInt();
+            long   startPrice    = buf.readLong();
+            long   currentBid    = buf.readLong();
+            String topBidderName = buf.readUtf();
+            long   endTimeMs     = buf.readLong();
+            // ★ 入札履歴
+            int histSize = buf.readVarInt();
+            List<BidHistoryEntry> history = new ArrayList<>(histSize);
+            for (int i = 0; i < histSize; i++) {
+                history.add(BidHistoryEntry.decode(buf));
+            }
             return new AuctionDto(
-                buf.readUUID(),
-                buf.readUtf(),
-                buf.readUtf(),
-                buf.readVarInt(),
-                buf.readLong(),
-                buf.readLong(),
-                buf.readUtf(),
-                buf.readLong()
+                listingId, sellerName, itemName, itemCount,
+                startPrice, currentBid, topBidderName, endTimeMs,
+                history
             );
         }
 
         public static AuctionDto from(AuctionListing listing) {
+            // ★ BidEntry → BidHistoryEntry に変換
+            List<BidHistoryEntry> history = new ArrayList<>(listing.bidHistory.size());
+            for (AuctionListing.BidEntry e : listing.bidHistory) {
+                history.add(new BidHistoryEntry(e.bidderName(), e.amount(), e.timestampMs()));
+            }
             return new AuctionDto(
                 listing.id,
                 listing.sellerName,
@@ -95,7 +137,8 @@ public record SyncAuctionPayload(
                 listing.startPrice,
                 listing.currentBid,
                 listing.topBidderName,
-                listing.endTimeMs
+                listing.endTimeMs,
+                history
             );
         }
 

@@ -13,42 +13,21 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * オークション GUI（Yahoo!オークション風）
- *
- * ┌──────────────────────────────────────────────┐
- * │  🔨 オークション            残高: ¥XX,XXX      │
- * ├────────┬────────┬──────────┬────────┬────────┤
- * │ 出品者  │ アイテム │ 現在入札額 │ 残り時間 │        │
- * │ ...    │ ...    │ ¥X,XXX   │ 2:30   │ [入札] │
- * ├──────────────────────────────────────────────┤
- * │ 選択中: Diamond Sword  最低入札額: ¥1,001      │
- * │ 入札額: [__________]  [入札する]               │
- * └──────────────────────────────────────────────┘
- */
 public class AuctionScreen extends Screen {
 
-    // 表示中の一覧
     private List<SyncAuctionPayload.AuctionDto> listings = new ArrayList<>();
     private long balance = 0;
 
-    // 選択中の出品（入札対象）
     private int selectedRow = -1;
-
-    // スクロール
     private int scrollOffset = 0;
     private static final int ROWS_VISIBLE = 7;
     private static final int ROW_HEIGHT = 20;
 
-    // 入札額入力ボックス
     private EditBox bidBox;
-
-    // ボタン参照
     private Button bidButton;
     private Button scrollUpBtn;
     private Button scrollDownBtn;
 
-    // メッセージ（フィードバック表示）
     private String statusMessage = "";
     private int statusColor = 0xFFFFFF;
     private int statusTimer = 0;
@@ -64,7 +43,6 @@ public class AuctionScreen extends Screen {
         int panelW = Math.min(520, w - 40);
         int panelX = (w - panelW) / 2;
 
-        // 入札額入力ボックス
         bidBox = new EditBox(this.font,
             panelX + 90, h - 52, 130, 18,
             Component.literal("入札額 (¥)"));
@@ -73,29 +51,26 @@ public class AuctionScreen extends Screen {
         bidBox.setFilter(s -> s.isEmpty() || s.matches("\\d+"));
         this.addRenderableWidget(bidBox);
 
-        // 入札ボタン
         bidButton = Button.builder(
             Component.literal("入札する"),
             btn -> doPlaceBid()
         ).bounds(panelX + 228, h - 54, 80, 20).build();
         this.addRenderableWidget(bidButton);
 
-        // スクロールボタン
         scrollUpBtn = Button.builder(Component.literal("▲"),
             btn -> scrollOffset = Math.max(0, scrollOffset - 1))
-            .bounds(panelX + panelW - 20, getListY() - 2, 18, 18).build();
+            .bounds(panelX + Math.min(520, w - 40) - 20, getListY() - 2, 18, 18).build();
         this.addRenderableWidget(scrollUpBtn);
 
         scrollDownBtn = Button.builder(Component.literal("▼"),
             btn -> scrollOffset = Math.min(
                 Math.max(0, listings.size() - ROWS_VISIBLE), scrollOffset + 1))
-            .bounds(panelX + panelW - 20, getListY() + 18, 18, 18).build();
+            .bounds(panelX + Math.min(520, w - 40) - 20, getListY() + 18, 18, 18).build();
         this.addRenderableWidget(scrollDownBtn);
     }
 
     @Override
     public void renderBackground(GuiGraphics gfx, int mouseX, int mouseY, float partialTick) {
-        // ぼかし（被写界深度）を無効化し、半透明黒背景に置き換え
         gfx.fill(0, 0, this.width, this.height, 0xC0101018);
     }
 
@@ -111,9 +86,7 @@ public class AuctionScreen extends Screen {
         int listY = getListY();
 
         // ── タイトル・残高 ──────────────────────────────
-        gfx.drawCenteredString(this.font,
-            "🔨 オークション",
-            w / 2, panelY, 0xFFDD44);
+        gfx.drawCenteredString(this.font, "🔨 オークション", w / 2, panelY, 0xFFDD44);
         gfx.drawString(this.font,
             "残高: ¥" + String.format("%,d", balance),
             panelX, panelY, 0x00FF88);
@@ -122,10 +95,10 @@ public class AuctionScreen extends Screen {
         int headerY = panelY + 14;
         int tableW = panelW - 22;
         gfx.fill(panelX, headerY, panelX + tableW, headerY + 15, 0xFF444466);
-        gfx.drawString(this.font, "出品者",    col(panelX, 0),  headerY + 4, 0xCCCCFF);
-        gfx.drawString(this.font, "アイテム",   col(panelX, 1),  headerY + 4, 0xCCCCFF);
-        gfx.drawString(this.font, "現在入札額", col(panelX, 2),  headerY + 4, 0xCCCCFF);
-        gfx.drawString(this.font, "残り時間",   col(panelX, 3),  headerY + 4, 0xCCCCFF);
+        gfx.drawString(this.font, "出品者",    col(panelX, 0), headerY + 4, 0xCCCCFF);
+        gfx.drawString(this.font, "アイテム",   col(panelX, 1), headerY + 4, 0xCCCCFF);
+        gfx.drawString(this.font, "現在入札額", col(panelX, 2), headerY + 4, 0xCCCCFF);
+        gfx.drawString(this.font, "残り時間",   col(panelX, 3), headerY + 4, 0xCCCCFF);
 
         // ── 出品一覧 ────────────────────────────────────
         int end = Math.min(scrollOffset + ROWS_VISIBLE, listings.size());
@@ -134,21 +107,17 @@ public class AuctionScreen extends Screen {
             int rowY = listY + (i - scrollOffset) * ROW_HEIGHT;
             boolean isSelected = (i == selectedRow);
 
-            // 行背景
             int rowBg = isSelected ? 0xFF223355
                 : (i % 2 == 0 ? 0xFF1E1E2E : 0xFF252535);
             gfx.fill(panelX, rowY, panelX + tableW, rowY + ROW_HEIGHT - 1, rowBg);
             if (isSelected) {
-                // 選択枠
                 gfx.fill(panelX, rowY, panelX + tableW, rowY + 1, 0xFF5577AA);
                 gfx.fill(panelX, rowY + ROW_HEIGHT - 2, panelX + tableW, rowY + ROW_HEIGHT - 1, 0xFF5577AA);
             }
 
-            // テキスト
             gfx.drawString(this.font, truncate(dto.sellerName(), 10), col(panelX, 0), rowY + 6, 0xCCCCCC);
             gfx.drawString(this.font, truncate(dto.itemName(), 14),   col(panelX, 1), rowY + 6, 0xFFFFFF);
 
-            // 入札額（入札なし時はスタート価格を薄く表示）
             if (dto.currentBid() > 0) {
                 gfx.drawString(this.font,
                     "¥" + String.format("%,d", dto.currentBid()),
@@ -159,15 +128,13 @@ public class AuctionScreen extends Screen {
                     col(panelX, 2), rowY + 6, 0x888855);
             }
 
-            // 残り時間（色分け）
             long secs = dto.remainingSecs();
             String timeStr = formatTime(secs);
-            int timeColor = secs <= 60 ? 0xFF4444       // 1分以内 → 赤
-                : secs <= 300 ? 0xFF8833               // 5分以内 → オレンジ
-                : 0x88CCFF;                             // 通常 → 水色
+            int timeColor = secs <= 60 ? 0xFF4444
+                : secs <= 300 ? 0xFF8833
+                : 0x88CCFF;
             gfx.drawString(this.font, timeStr, col(panelX, 3), rowY + 6, timeColor);
 
-            // 入札ボタン（ホバー or 選択でハイライト）
             int btnX = panelX + tableW - 44;
             boolean hovered = mouseX >= btnX && mouseX <= btnX + 42
                            && mouseY >= rowY && mouseY <= rowY + ROW_HEIGHT - 1;
@@ -178,7 +145,6 @@ public class AuctionScreen extends Screen {
                 hovered ? 0x88DDFF : 0x4499CC);
         }
 
-        // 一覧なし表示
         if (listings.isEmpty()) {
             gfx.drawCenteredString(this.font,
                 "出品中のアイテムはありません",
@@ -192,12 +158,10 @@ public class AuctionScreen extends Screen {
 
         if (selectedRow >= 0 && selectedRow < listings.size()) {
             var sel = listings.get(selectedRow);
-            // 選択中アイテム情報
             gfx.drawString(this.font,
                 "選択: " + truncate(sel.itemName(), 20)
                 + "  最低入札額: ¥" + String.format("%,d", sel.minimumBid()),
                 panelX + 4, areaY + 5, 0xAAAAFF);
-            // 最高入札者
             if (!sel.topBidderName().isEmpty()) {
                 gfx.drawString(this.font,
                     "現在の最高額入札者: " + sel.topBidderName(),
@@ -209,7 +173,6 @@ public class AuctionScreen extends Screen {
                 panelX + 4, areaY + 10, 0x666688);
         }
 
-        // 入札額ラベル
         gfx.drawString(this.font, "入札額 ¥:", panelX + 4, h - 46, 0xCCCCCC);
 
         // ── ステータスメッセージ ─────────────────────────
@@ -221,48 +184,81 @@ public class AuctionScreen extends Screen {
         }
 
         super.render(gfx, mouseX, mouseY, delta);
+
+        // ★ 入札履歴ツールチップ（最前面に描画するため super.render の後）
+        renderBidHistoryTooltip(gfx, mouseX, mouseY);
     }
 
-    @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (button == 0) {
-            int w = this.width;
-            int panelW = Math.min(520, w - 40);
-            int panelX = (w - panelW) / 2;
-            int tableW = panelW - 22;
-            int listY = getListY();
-            int btnX = panelX + tableW - 44;
+    // ===================================================
+    // ★ 入札履歴ツールチップ
+    // ===================================================
 
-            int end = Math.min(scrollOffset + ROWS_VISIBLE, listings.size());
-            for (int i = scrollOffset; i < end; i++) {
-                int rowY = listY + (i - scrollOffset) * ROW_HEIGHT;
+    /**
+     * 出品一覧の行にホバーしたとき、入札履歴をツールチップで表示する。
+     * レイアウトを変更しないため super.render() の直後に呼ぶ。
+     */
+    private void renderBidHistoryTooltip(GuiGraphics gfx, int mouseX, int mouseY) {
+        int w = this.width;
+        int panelW = Math.min(520, w - 40);
+        int panelX = (w - panelW) / 2;
+        int tableW = panelW - 22;
+        int listY = getListY();
 
-                // 入札ボタンクリック
-                if (mouseX >= btnX && mouseX <= btnX + 42
-                 && mouseY >= rowY && mouseY <= rowY + ROW_HEIGHT - 1) {
-                    selectedRow = i;
-                    // 最低入札額を自動セット
-                    bidBox.setValue(String.valueOf(listings.get(i).minimumBid()));
-                    return true;
-                }
-
-                // 行クリック → 選択
-                if (mouseX >= panelX && mouseX <= panelX + tableW
-                 && mouseY >= rowY && mouseY <= rowY + ROW_HEIGHT - 1) {
-                    selectedRow = i;
-                    bidBox.setValue(String.valueOf(listings.get(i).minimumBid()));
-                    return true;
-                }
+        // ホバー中の行を特定
+        int hoveredRow = -1;
+        int end = Math.min(scrollOffset + ROWS_VISIBLE, listings.size());
+        for (int i = scrollOffset; i < end; i++) {
+            int rowY = listY + (i - scrollOffset) * ROW_HEIGHT;
+            if (mouseY >= rowY && mouseY < rowY + ROW_HEIGHT
+             && mouseX >= panelX && mouseX < panelX + tableW - 44) { // 入札ボタン列を除く
+                hoveredRow = i;
+                break;
             }
         }
-        return super.mouseClicked(mouseX, mouseY, button);
-    }
+        if (hoveredRow < 0) return;
 
-    @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        if (scrollY > 0) scrollOffset = Math.max(0, scrollOffset - 1);
-        else scrollOffset = Math.min(Math.max(0, listings.size() - ROWS_VISIBLE), scrollOffset + 1);
-        return true;
+        var dto = listings.get(hoveredRow);
+        var history = dto.bidHistory();
+
+        // ツールチップサイズ計算
+        int lineH   = 11;
+        int padding = 5;
+        int tipW    = 200;
+        int entryCount = history.isEmpty() ? 1 : Math.min(5, history.size());
+        int tipH    = padding * 2 + lineH + entryCount * lineH + 2;
+
+        // 表示位置: カーソル右側、画面端ならば左側
+        int tipX = mouseX + 10;
+        if (tipX + tipW > w - 4) tipX = mouseX - tipW - 10;
+        int tipY = mouseY - tipH / 2;
+        tipY = Math.max(4, Math.min(tipY, this.height - tipH - 4));
+
+        // 背景・枠
+        gfx.fill(tipX - 1, tipY - 1, tipX + tipW + 1, tipY + tipH + 1, 0xFF445566);
+        gfx.fill(tipX,     tipY,     tipX + tipW,     tipY + tipH,     0xF0090E18);
+
+        // ヘッダー
+        gfx.drawString(this.font, "入札履歴", tipX + padding, tipY + padding, 0xAAAAFF);
+
+        // 履歴エントリ（新しい順）
+        int yBase = tipY + padding + lineH + 2;
+        if (history.isEmpty()) {
+            gfx.drawString(this.font, "入札なし", tipX + padding, yBase, 0x555577);
+        } else {
+            int startIdx = Math.max(0, history.size() - 5);
+            int dispIdx  = 0;
+            for (int j = history.size() - 1; j >= startIdx; j--, dispIdx++) {
+                var entry = history.get(j);
+                long agoSecs = (System.currentTimeMillis() - entry.timestampMs()) / 1000;
+                String line  = entry.bidderName()
+                             + "  ¥" + String.format("%,d", entry.amount())
+                             + "  " + formatAgo(agoSecs);
+                int color    = (dispIdx == 0) ? 0xFFDD44 : 0x999999;
+                gfx.drawString(this.font,
+                    truncate(line, 22),
+                    tipX + padding, yBase + dispIdx * lineH, color);
+            }
+        }
     }
 
     // ===================================================
@@ -308,9 +304,8 @@ public class AuctionScreen extends Screen {
 
     public void updateListings(List<SyncAuctionPayload.AuctionDto> newListings, long newBalance) {
         this.listings = new ArrayList<>(newListings);
-        this.balance = newBalance;
+        this.balance  = newBalance;
         this.scrollOffset = Math.min(scrollOffset, Math.max(0, listings.size() - ROWS_VISIBLE));
-        // 選択行の再チェック（削除された場合はリセット）
         if (selectedRow >= listings.size()) selectedRow = -1;
     }
 
@@ -318,18 +313,15 @@ public class AuctionScreen extends Screen {
     // ユーティリティ
     // ===================================================
 
-    /** カラム X 座標 */
     private int col(int panelX, int colIndex) {
         int[] offsets = {4, 100, 250, 370};
         return panelX + offsets[colIndex];
     }
 
-    /** 一覧開始Y座標 */
     private int getListY() {
-        return 20 + 14 + 16; // panelY + headerY + headerH
+        return 20 + 14 + 16;
     }
 
-    /** 残り時間フォーマット: H:MM:SS or MM:SS */
     private String formatTime(long secs) {
         if (secs <= 0) return "終了";
         long h = secs / 3600;
@@ -339,16 +331,62 @@ public class AuctionScreen extends Screen {
         return String.format("%d:%02d", m, s);
     }
 
+    /** X秒前 / X分前 / X時間前 */
+    private String formatAgo(long secs) {
+        if (secs < 60)   return secs + "秒前";
+        if (secs < 3600) return (secs / 60) + "分前";
+        return (secs / 3600) + "時間前";
+    }
+
     private String truncate(String str, int max) {
         return str.length() <= max ? str : str.substring(0, max - 1) + "…";
     }
 
     private void showStatus(String msg, int color) {
         statusMessage = msg;
-        statusColor = color;
-        statusTimer = 80; // 約4秒
+        statusColor   = color;
+        statusTimer   = 80;
     }
 
     @Override
     public boolean isPauseScreen() { return false; }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == 0) {
+            int w = this.width;
+            int panelW = Math.min(520, w - 40);
+            int panelX = (w - panelW) / 2;
+            int tableW = panelW - 22;
+            int listY  = getListY();
+            int btnX   = panelX + tableW - 44;
+
+            int end = Math.min(scrollOffset + ROWS_VISIBLE, listings.size());
+            for (int i = scrollOffset; i < end; i++) {
+                int rowY = listY + (i - scrollOffset) * ROW_HEIGHT;
+
+                if (mouseX >= btnX && mouseX <= btnX + 42
+                 && mouseY >= rowY && mouseY <= rowY + ROW_HEIGHT - 1) {
+                    selectedRow = i;
+                    bidBox.setValue(String.valueOf(listings.get(i).minimumBid()));
+                    return true;
+                }
+
+                if (mouseX >= panelX && mouseX <= panelX + tableW
+                 && mouseY >= rowY && mouseY <= rowY + ROW_HEIGHT - 1) {
+                    selectedRow = i;
+                    bidBox.setValue(String.valueOf(listings.get(i).minimumBid()));
+                    return true;
+                }
+            }
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (scrollY > 0) scrollOffset = Math.max(0, scrollOffset - 1);
+        else scrollOffset = Math.min(Math.max(0, listings.size() - ROWS_VISIBLE), scrollOffset + 1);
+        return true;
+    }
 }

@@ -31,14 +31,12 @@ public class MobListingGenerator {
         new MobListing("村人D", new ItemStack(Items.ENCHANTING_TABLE), 5000)
     );
 
-    // オークション初期出品（終了まで1時間）
-    // 30秒 → 3分に変更
-    private static final long AUCTION_DURATION_MS = 3 * 60 * 1000L; // デバッグ用（3分）／本番: 60 * 60 * 1000L（1時間）
+    private static final long AUCTION_DURATION_MS = 3 * 60 * 1000L;
     private static final List<MobListing> AUCTION_LISTINGS = List.of(
-        new MobListing("スティーブ", new ItemStack(Items.NETHERITE_INGOT),      5000),
-        new MobListing("アレックス", new ItemStack(Items.ELYTRA),              20000),
-        new MobListing("村人A",     new ItemStack(Items.DIAMOND_SWORD),        3000),
-        new MobListing("村人B",     new ItemStack(Items.SHULKER_BOX),          2000)
+        new MobListing("スティーブ", new ItemStack(Items.NETHERITE_INGOT),  5000),
+        new MobListing("アレックス", new ItemStack(Items.ELYTRA),          20000),
+        new MobListing("村人A",     new ItemStack(Items.DIAMOND_SWORD),    3000),
+        new MobListing("村人B",     new ItemStack(Items.SHULKER_BOX),      2000)
     );
 
     @SubscribeEvent
@@ -55,7 +53,6 @@ public class MobListingGenerator {
                 STARTER_LISTINGS.size() + VILLAGER_LISTINGS.size());
         }
 
-        // オークション初期出品（アクティブ出品ゼロの時のみ）
         AuctionSavedData auctionData = AuctionSavedData.get(level);
         boolean hasActiveAuction = auctionData.getAll().stream().anyMatch(l -> !l.isExpired());
         if (!hasActiveAuction) {
@@ -63,6 +60,25 @@ public class MobListingGenerator {
             FreeMarketMod.LOGGER.info("FreeMarket: オークション初期出品 {}件登録",
                 AUCTION_LISTINGS.size());
         }
+    }
+
+    /**
+     * アクティブなモブ出品が AUCTION_LISTINGS.size() を下回っていたら補充する。
+     * AuctionTickHandler の落札/流札処理後に呼ばれる。
+     */
+    public static void replenishAuctionIfNeeded(AuctionSavedData auctionData) {
+        long activeMobCount = auctionData.getAll().stream()
+            .filter(l -> !l.isExpired())
+            .filter(l -> UUID.nameUUIDFromBytes(l.sellerName.getBytes()).equals(l.sellerUUID))
+            .count();
+
+        int needed = AUCTION_LISTINGS.size() - (int) activeMobCount;
+        if (needed <= 0) return;
+
+        List<MobListing> toAdd = AUCTION_LISTINGS.subList(0, Math.min(needed, AUCTION_LISTINGS.size()));
+        addAuctionListings(auctionData, toAdd);
+        FreeMarketMod.LOGGER.info("FreeMarket: オークション自動再出品 {}件補充 (アクティブ残: {})",
+            toAdd.size(), activeMobCount);
     }
 
     private static void addListings(MarketSavedData data, List<MobListing> templates) {

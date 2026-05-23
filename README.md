@@ -59,7 +59,7 @@ freemarket-mod/
 │   │   ├── AuctionListing.java          # 出品データ（入札・期限管理）
 │   │   ├── AuctionMenu.java             # オークションコンテナメニュー
 │   │   ├── AuctionSavedData.java        # オークションデータ永続化
-│   │   └── AuctionTickHandler.java      # 落札処理・全員sync（100tick毎）・モブ流札破棄
+│   │   └── AuctionTickHandler.java      # 落札処理・全員sync（100tick毎）・モブ流札破棄・自動再出品
 │   ├── command/
 │   │   ├── MarketCommand.java           # /market open|balance|give
 │   │   └── AuctionCommand.java          # /auction open
@@ -74,7 +74,7 @@ freemarket-mod/
 │   ├── market/
 │   │   ├── MarketListing.java           # フリマ出品データ
 │   │   ├── FleaMarketMenu.java          # フリマコンテナメニュー
-│   │   └── MobListingGenerator.java     # モブ自動出品（ワールドロード時）
+│   │   └── MobListingGenerator.java     # モブ自動出品（ワールドロード時・落札/流札後の自動補充）
 │   └── network/
 │       ├── ModNetwork.java              # パケット登録・ハンドラ
 │       ├── MarketPackets.java           # 旧パケット定義（後方互換）
@@ -82,7 +82,7 @@ freemarket-mod/
 │           ├── OpenMarketPayload.java   # S→C: フリマ画面を開く
 │           ├── OpenAuctionPayload.java  # S→C: オークション画面を開く
 │           ├── SyncListingsPayload.java # S→C: フリマ出品一覧同期
-│           ├── SyncAuctionPayload.java  # S→C: オークション出品一覧同期
+│           ├── SyncAuctionPayload.java  # S→C: オークション出品一覧同期（入札履歴含む）
 │           ├── BuyPayload.java          # C→S: フリマ購入
 │           ├── SellPayload.java         # C→S: フリマ出品
 │           └── BidPayload.java          # C→S: オークション入札
@@ -182,7 +182,13 @@ LevelTickEvent.Post
 - PlayerLoginHandler: ログイン時に未渡しアイテムを自動配送・チャット通知
 - オークション期間を3分に変更（`AUCTION_DURATION_MS = 3 * 60 * 1000L`）
 
-### 🔜 Phase 6: 未実装・改善候補
-- オークション終了後の自動再出品
-- 残り時間のリアルタイムカウントダウン表示
-- 入札履歴のGUI表示
+### ✅ Phase 6: オークション改善
+- **自動再出品**: 落札・流札でモブ出品が減った際、`AuctionTickHandler` の処理後に `MobListingGenerator.replenishAuctionIfNeeded()` を呼び出して不足分を補充
+- **カウントダウン表示**: `AuctionDto.endTimeMs`（絶対時刻）を `render()` 内で毎フレーム `System.currentTimeMillis()` と差分計算しており、追加対応なしでリアルタイム更新済みと確認
+- **入札履歴GUI表示**: `SyncAuctionPayload.AuctionDto` に `List<BidHistoryEntry>` を追加してDTO転送、`AuctionScreen` でホバー時にツールチップ表示（新しい順・最大5件・「X秒前」形式）
+
+### 🔜 Phase 7: 未実装・改善候補
+- フリマ出品のモブ自動再出品（購入後の補充）
+- 入札時のチャット通知（「〇〇が△△に入札しました」）
+- フリマ・オークション画面のアイテムアイコン表示
+- 出品期限・カテゴリフィルタ
