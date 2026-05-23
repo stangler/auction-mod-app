@@ -59,7 +59,7 @@ freemarket-mod/
 │   │   ├── AuctionListing.java          # 出品データ（入札・期限管理）
 │   │   ├── AuctionMenu.java             # オークションコンテナメニュー
 │   │   ├── AuctionSavedData.java        # オークションデータ永続化
-│   │   └── AuctionTickHandler.java      # 落札処理・全員sync（100tick毎）
+│   │   └── AuctionTickHandler.java      # 落札処理・全員sync（100tick毎）・モブ流札破棄
 │   ├── command/
 │   │   ├── MarketCommand.java           # /market open|balance|give
 │   │   └── AuctionCommand.java          # /auction open
@@ -68,9 +68,9 @@ freemarket-mod/
 │   │   ├── FleaMarketScreen.java        # フリマGUI
 │   │   └── ClientNetworkHandler.java    # クライアント側パケット処理
 │   ├── data/
-│   │   └── MarketSavedData.java         # 残高・出品・ボーナス管理（永続化）
+│   │   └── MarketSavedData.java         # 残高・出品・ボーナス・未渡しアイテムキュー管理（永続化）
 │   ├── event/
-│   │   └── PlayerLoginHandler.java      # 初回ログインボーナス付与
+│   │   └── PlayerLoginHandler.java      # 初回ログインボーナス付与・未渡しアイテム配送
 │   ├── market/
 │   │   ├── MarketListing.java           # フリマ出品データ
 │   │   ├── FleaMarketMenu.java          # フリマコンテナメニュー
@@ -114,6 +114,8 @@ freemarket-mod/
 | フリマ購入 | フリマGUIで「購入」ボタン |
 | フリマ出品 | フリマGUIでアイテムを手に持って「出品」ボタン → 価格入力 |
 | オークション入札 | オークションGUIで金額入力 → 「入札する」ボタン |
+| オークション落札（オンライン） | 期限切れ時にチャット通知＋インベントリに直接付与 |
+| オークション落札（オフライン） | 次回ログイン時に自動配送＋チャット通知 |
 
 ---
 
@@ -121,7 +123,7 @@ freemarket-mod/
 
 | ファイル | 内容 |
 |---------|------|
-| `saves/<ワールド名>/data/freemarket_data.dat` | フリマ出品・残高・ボーナス受取済みUUID |
+| `saves/<ワールド名>/data/freemarket_data.dat` | フリマ出品・残高・ボーナス受取済みUUID・未渡しアイテムキュー |
 | `saves/<ワールド名>/data/freemarket_auctions.dat` | オークション出品・入札履歴 |
 
 > 動作確認時にリセットしたい場合は両ファイルを削除して新ワールドを作成。
@@ -174,8 +176,13 @@ LevelTickEvent.Post
 - GUIぼかし（被写界深度エフェクト）解消
 - 落札後の全プレイヤーへのオークションデータ再同期
 
-### 🔜 Phase 5: 未実装・改善候補
-- オフライン落札者への未渡しキュー（現状はログのみ）
+### ✅ Phase 5: オフライン落札者への未渡しキュー
+- MarketSavedData に `pendingItems`（Map<UUID, List<ItemStack>>）を追加・NBT永続化
+- AuctionTickHandler: オフライン落札者をキューへ登録、モブ出品の流札は破棄
+- PlayerLoginHandler: ログイン時に未渡しアイテムを自動配送・チャット通知
+- オークション期間を3分に変更（`AUCTION_DURATION_MS = 3 * 60 * 1000L`）
+
+### 🔜 Phase 6: 未実装・改善候補
 - オークション終了後の自動再出品
 - 残り時間のリアルタイムカウントダウン表示
 - 入札履歴のGUI表示

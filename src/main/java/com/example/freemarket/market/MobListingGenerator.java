@@ -32,7 +32,8 @@ public class MobListingGenerator {
     );
 
     // オークション初期出品（終了まで1時間）
-    private static final long AUCTION_DURATION_MS = 60 * 60 * 1000L;
+    // 30秒 → 3分に変更
+    private static final long AUCTION_DURATION_MS = 3 * 60 * 1000L; // デバッグ用（3分）／本番: 60 * 60 * 1000L（1時間）
     private static final List<MobListing> AUCTION_LISTINGS = List.of(
         new MobListing("スティーブ", new ItemStack(Items.NETHERITE_INGOT),      5000),
         new MobListing("アレックス", new ItemStack(Items.ELYTRA),              20000),

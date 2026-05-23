@@ -1,13 +1,16 @@
 package com.example.freemarket.auction;
 
+import com.example.freemarket.FreeMarketMod;
 import com.example.freemarket.data.MarketSavedData;
 import com.example.freemarket.network.ModNetwork;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
 import java.util.List;
+import java.util.UUID;
 
 public class AuctionTickHandler {
 
@@ -38,12 +41,22 @@ public class AuctionTickHandler {
         }
     }
 
+    /**
+     * MobListingGenerator はモブのUUIDを UUID.nameUUIDFromBytes(name) で生成する。
+     * この値と一致すれば「モブ出品」と判定できる。
+     */
+    private static boolean isMobSeller(AuctionListing listing) {
+        UUID mobUUID = UUID.nameUUIDFromBytes(listing.sellerName.getBytes());
+        return listing.sellerUUID.equals(mobUUID);
+    }
+
     private void settle(AuctionListing listing,
                         ServerLevel level,
                         AuctionSavedData auctionData,
                         MarketSavedData marketData) {
 
         if (listing.hasBid()) {
+            // ── 落札処理 ─────────────────────────────────────────
             ServerPlayer winner = level.getServer()
                     .getPlayerList().getPlayerByName(listing.topBidderName);
 
@@ -53,34 +66,70 @@ public class AuctionTickHandler {
                     winner.drop(listing.stack.copy(), false);
                 }
                 marketData.addBalance(winner.getUUID(), -listing.currentBid);
+                winner.sendSystemMessage(Component.literal(
+                    "[FreeMarket] 落札アイテムを受け取りました: " +
+                    listing.stack.getHoverName().getString()));
+
             } else {
-                // オフライン: ProfileCacheでUUID解決して代金徴収
+                // オフライン: ProfileCache でUUID解決 → 代金徴収＋未渡しキューへ
                 level.getServer().getProfileCache()
                         .get(listing.topBidderName)
-                        .ifPresent(profile ->
-                            marketData.addBalance(profile.getId(), -listing.currentBid));
-                // アイテム未渡しログ（Phase4で未渡しキュー実装予定）
-                level.getServer().sendSystemMessage(
-                    net.minecraft.network.chat.Component.literal(
-                        "[FreeMarket] 落札アイテム未渡し: " + listing.topBidderName));
+                        .ifPresentOrElse(
+                            profile -> {
+                                marketData.addBalance(profile.getId(), -listing.currentBid);
+                                marketData.addPendingItem(profile.getId(), listing.stack);
+                                FreeMarketMod.LOGGER.info(
+                                    "[FreeMarket] 落札アイテムをキューに追加: {} → {}",
+                                    listing.stack.getHoverName().getString(),
+                                    listing.topBidderName);
+                            },
+                            () -> FreeMarketMod.LOGGER.warn(
+                                "[FreeMarket] ProfileCache未解決のため未渡しキュー登録不可: {}",
+                                listing.topBidderName)
+                        );
             }
 
-            // 出品者に代金付与
+            // 出品者に代金付与（モブ・実プレイヤー共通）
             marketData.addBalance(listing.sellerUUID, listing.currentBid);
 
         } else {
-            // 流札: 出品者にアイテム返却
-            ServerPlayer seller = level.getServer()
-                    .getPlayerList().getPlayerByName(listing.sellerName);
+            // ── 流札処理 ─────────────────────────────────────────
+            if (isMobSeller(listing)) {
+                // モブ出品の流札はアイテム破棄（返却先なし）
+                FreeMarketMod.LOGGER.info(
+                    "[FreeMarket] 流札（モブ出品）破棄: {}",
+                    listing.stack.getHoverName().getString());
 
-            if (seller != null) {
-                if (!seller.getInventory().add(listing.stack.copy())) {
-                    seller.drop(listing.stack.copy(), false);
-                }
             } else {
-                level.getServer().sendSystemMessage(
-                    net.minecraft.network.chat.Component.literal(
-                        "[FreeMarket] 流札アイテム未返却: " + listing.sellerName));
+                // 実プレイヤー出品の流札はアイテム返却
+                ServerPlayer seller = level.getServer()
+                        .getPlayerList().getPlayerByName(listing.sellerName);
+
+                if (seller != null) {
+                    // オンライン: 即返却
+                    if (!seller.getInventory().add(listing.stack.copy())) {
+                        seller.drop(listing.stack.copy(), false);
+                    }
+                    seller.sendSystemMessage(Component.literal(
+                        "[FreeMarket] 流札のため返却: " +
+                        listing.stack.getHoverName().getString()));
+                } else {
+                    // オフライン: 未渡しキューへ返却
+                    level.getServer().getProfileCache()
+                            .get(listing.sellerName)
+                            .ifPresentOrElse(
+                                profile -> {
+                                    marketData.addPendingItem(profile.getId(), listing.stack);
+                                    FreeMarketMod.LOGGER.info(
+                                        "[FreeMarket] 流札アイテムをキューに追加（返却）: {} → {}",
+                                        listing.stack.getHoverName().getString(),
+                                        listing.sellerName);
+                                },
+                                () -> FreeMarketMod.LOGGER.warn(
+                                    "[FreeMarket] ProfileCache未解決のため流札返却不可: {}",
+                                    listing.sellerName)
+                            );
+                }
             }
         }
 
