@@ -66,7 +66,8 @@ public record SyncAuctionPayload(
         String topBidderName,
         long endTimeMs,
         List<BidHistoryEntry> bidHistory,
-        String itemId
+        String itemId,
+        long durationMs
     ) {
         public void encode(FriendlyByteBuf buf) {
             buf.writeUUID(listingId);
@@ -80,6 +81,7 @@ public record SyncAuctionPayload(
             buf.writeVarInt(bidHistory.size());
             for (BidHistoryEntry e : bidHistory) e.encode(buf);
             buf.writeUtf(itemId);
+            buf.writeLong(durationMs);
         }
 
         public static AuctionDto decode(FriendlyByteBuf buf) {
@@ -95,8 +97,9 @@ public record SyncAuctionPayload(
             List<BidHistoryEntry> history = new ArrayList<>(histSize);
             for (int i = 0; i < histSize; i++) history.add(BidHistoryEntry.decode(buf));
             String itemId = buf.readUtf();
+            long durationMs = buf.readLong();
             return new AuctionDto(listingId, sellerName, itemName, itemCount,
-                startPrice, currentBid, topBidderName, endTimeMs, history, itemId);
+                startPrice, currentBid, topBidderName, endTimeMs, history, itemId, durationMs);
         }
 
         public static AuctionDto from(AuctionListing listing) {
@@ -111,7 +114,7 @@ public record SyncAuctionPayload(
                 listing.stack.getHoverName().getString(),
                 listing.stack.getCount(),
                 listing.startPrice, listing.currentBid, listing.topBidderName,
-                listing.endTimeMs, history, itemId
+                listing.endTimeMs, history, itemId, listing.durationMs
             );
         }
 

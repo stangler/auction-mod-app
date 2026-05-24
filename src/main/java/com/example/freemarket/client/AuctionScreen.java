@@ -261,6 +261,7 @@ public class AuctionScreen extends Screen {
         gfx.drawString(this.font, "アイテム",   col(panelX, 1), headerY + 4, 0xCCCCFF);
         gfx.drawString(this.font, "現在入札額", col(panelX, 2), headerY + 4, 0xCCCCFF);
         gfx.drawString(this.font, "残り時間",   col(panelX, 3), headerY + 4, 0xCCCCFF);
+        gfx.drawString(this.font, "期間",       col(panelX, 4), headerY + 4, 0xCCCCFF);
 
         // 出品一覧
         int end = Math.min(scrollOffset + ROWS_VISIBLE, listings.size());
@@ -297,6 +298,10 @@ public class AuctionScreen extends Screen {
             String timeStr = formatTime(secs);
             int timeColor  = secs <= 60 ? 0xFF4444 : secs <= 300 ? 0xFF8833 : 0x88CCFF;
             gfx.drawString(this.font, timeStr, col(panelX, 3), rowY + 6, timeColor);
+
+            // 出品期間
+            gfx.drawString(this.font,
+                formatDuration(dto.durationMs()), col(panelX, 4), rowY + 6, 0xAA88CC);
 
             int btnX   = panelX + tableW - 44;
             boolean hov = mouseX >= btnX && mouseX <= btnX + 42
@@ -567,7 +572,8 @@ public class AuctionScreen extends Screen {
     }
 
     private int col(int panelX, int colIndex) {
-        int[] offsets = {4, 100, 260, 380};
+        // 0:出品者 1:アイテム 2:現在入札額 3:残り時間 4:出品期間
+        int[] offsets = {4, 96, 228, 332, 396};
         return panelX + offsets[colIndex];
     }
 
@@ -579,6 +585,14 @@ public class AuctionScreen extends Screen {
         long h = secs / 3600, m = (secs % 3600) / 60, s = secs % 60;
         if (h > 0) return String.format("%d:%02d:%02d", h, m, s);
         return String.format("%d:%02d", m, s);
+    }
+
+    /** 出品期間(ms)を "3分" / "30分" / "1時間" に変換。0は "―" */
+    private String formatDuration(long ms) {
+        if (ms <= 0)            return "―";
+        if (ms < 600_000)       return "3分";    // ~10分未満 → 3分枠
+        if (ms < 3_000_000)     return "30分";   // ~50分未満 → 30分枠
+        return "1時間";
     }
 
     private String formatAgo(long secs) {

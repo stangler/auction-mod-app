@@ -216,7 +216,29 @@ LevelTickEvent.Post
 - 流札挙動: プレイヤー出品 → 出品者に返却（オンライン: 直接付与、オフライン: pendingItems キュー）/ モブ出品 → 従来通り破棄
 - `AuctionTickHandler` は既に流札返却ロジック実装済みにつき変更なし
 
-### 🔜 Phase 9: 改善候補
-- フリマのカテゴリフィルタタブの動作確認・調整
-- オークション出品一覧への「出品期間」列追加
-- 残高不足時の出品ブロック（出品時に最低入札額分を仮ロック）
+### ✅ Phase 9: カテゴリフィルタ調整・出品期間列・残高チェック
+
+**フリマ カテゴリフィルタ組み込み（FleaMarketScreen）**
+- Phase 8 で作成した `ItemCategory.java` を `FleaMarketScreen` に組み込み（組み込み自体が未実装だった）
+- `selectedCategory` フィールド追加・`getFilteredListings()` でフィルタ
+- タブを手動描画（`rebuildWidgets` を避け `priceBox` 入力を保持）。選択中: 黄色テキスト＋下端黄色ライン、ホバー: 背景色変化
+- ヘッダー右端に件数表示（フィルタ中は「3 / 12 件」形式）
+- タブ切替時にスクロールを0リセット
+- 座標を定数化（`PANEL_Y / TAB_Y / HEADER_Y / LIST_Y`）、スクロールボタン位置をリスト右端に修正
+
+**オークション一覧「出品期間」列追加**
+- `AuctionListing` に `public final long durationMs` フィールド追加
+- NBT save/load 対応（旧セーブデータはキーなし→0→`"―"` 表示でフォールバック）
+- `SyncAuctionPayload.AuctionDto` に `durationMs` 追加（encode/decode/from 全対応）
+- `AuctionScreen` の列オフセットを5列に再設計、ヘッダー・各行に「期間」列を追加
+- `formatDuration()` ヘルパー: `<10分→"3分"` / `<50分→"30分"` / `それ以上→"1時間"` / `0→"―"`
+
+**残高不足時の出品ブロック（フリマ・オークション）**
+- サーバー側ハンドラ（`SellPayload` / `SellAuctionPayload`）で `getBalance()` チェックを追加
+- 残高不足の場合はチャットにエラーメッセージを送信して処理を中断
+- クライアント側チェックなし（サーバー側のみ）
+
+### 🔜 Phase 10: 改善候補
+- 出品手数料の導入（出品時に残高から一定額を徴収）
+- 自分の出品を取り消す機能（出品取消コマンドまたはGUIボタン）
+- オークション出品上限数の設定（プレイヤーあたりX件まで）

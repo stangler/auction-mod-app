@@ -15,6 +15,7 @@ public class AuctionListing {
     public final String sellerName;
     public final ItemStack stack;
     public final long startPrice;
+    public final long durationMs;   // 出品時に指定した期間（ms）
     public final long endTimeMs;
 
     public long currentBid;
@@ -42,6 +43,7 @@ public class AuctionListing {
         this.sellerName    = sellerName;
         this.stack         = stack.copy();
         this.startPrice    = startPrice;
+        this.durationMs    = durationMs;
         this.endTimeMs     = System.currentTimeMillis() + durationMs;
         this.currentBid    = 0L;
         this.topBidderName = "";
@@ -50,7 +52,7 @@ public class AuctionListing {
 
     // NBTロード用
     private AuctionListing(UUID id, UUID sellerUUID, String sellerName, ItemStack stack,
-                           long startPrice, long endTimeMs,
+                           long startPrice, long durationMs, long endTimeMs,
                            long currentBid, String topBidderName,
                            List<BidEntry> bidHistory) {
         this.id             = id;
@@ -58,6 +60,7 @@ public class AuctionListing {
         this.sellerName     = sellerName;
         this.stack          = stack;
         this.startPrice     = startPrice;
+        this.durationMs     = durationMs;
         this.endTimeMs      = endTimeMs;
         this.currentBid     = currentBid;
         this.topBidderName  = topBidderName;
@@ -91,6 +94,7 @@ public class AuctionListing {
         t.putString("seller",    sellerName);
         t.put("item",            stack.save(registries));
         t.putLong("startPrice",  startPrice);
+        t.putLong("durationMs",  durationMs);
         t.putLong("endTimeMs",   endTimeMs);
         t.putLong("currentBid",  currentBid);
         t.putString("topBidder", topBidderName);
@@ -110,6 +114,7 @@ public class AuctionListing {
         String seller     = t.getString("seller");
         ItemStack stack   = ItemStack.parseOptional(registries, t.getCompound("item"));
         long startPrice   = t.getLong("startPrice");
+        long durationMs   = t.getLong("durationMs"); // 旧データは0（"―"表示）
         long endTimeMs    = t.getLong("endTimeMs");
         long currentBid   = t.getLong("currentBid");
         String topBidder  = t.getString("topBidder");
@@ -121,7 +126,7 @@ public class AuctionListing {
             entries.add(BidEntry.load(history.getCompound(String.valueOf(i))));
         }
 
-        return new AuctionListing(id, sellerUUID, seller, stack, startPrice, endTimeMs,
+        return new AuctionListing(id, sellerUUID, seller, stack, startPrice, durationMs, endTimeMs,
                                   currentBid, topBidder, entries);
     }
 }
