@@ -11,6 +11,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.level.LevelEvent;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -78,6 +79,29 @@ public class MobListingGenerator {
         List<MobListing> toAdd = AUCTION_LISTINGS.subList(0, Math.min(needed, AUCTION_LISTINGS.size()));
         addAuctionListings(auctionData, toAdd);
         FreeMarketMod.LOGGER.info("FreeMarket: オークション自動再出品 {}件補充 (アクティブ残: {})",
+            toAdd.size(), activeMobCount);
+    }
+
+    /**
+     * アクティブなモブ出品が目標数を下回っていたら補充する。
+     * BuyPayload ハンドラの購入処理後に呼ばれる。
+     */
+    public static void replenishMarketIfNeeded(MarketSavedData marketData) {
+        List<MobListing> allMobListings = new ArrayList<>();
+        allMobListings.addAll(STARTER_LISTINGS);
+        allMobListings.addAll(VILLAGER_LISTINGS);
+        int targetCount = allMobListings.size();
+
+        long activeMobCount = marketData.getActiveListings().stream()
+            .filter(l -> UUID.nameUUIDFromBytes(l.getSellerName().getBytes()).equals(l.getSellerId()))
+            .count();
+
+        int needed = targetCount - (int) activeMobCount;
+        if (needed <= 0) return;
+
+        List<MobListing> toAdd = allMobListings.subList(0, Math.min(needed, targetCount));
+        addListings(marketData, toAdd);
+        FreeMarketMod.LOGGER.info("FreeMarket: フリマ自動再出品 {}件補充 (アクティブ残: {})",
             toAdd.size(), activeMobCount);
     }
 

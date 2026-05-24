@@ -3,6 +3,7 @@ package com.example.freemarket.network;
 import com.example.freemarket.auction.AuctionSavedData;
 import com.example.freemarket.data.MarketSavedData;
 import com.example.freemarket.market.MarketListing;
+import com.example.freemarket.market.MobListingGenerator;
 import com.example.freemarket.network.payload.*;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -53,6 +54,7 @@ public class ModNetwork {
                         sp.getInventory().add(l.getItemStack()));
                     sp.sendSystemMessage(Component.literal(
                         "購入完了！ 残高: ¥" + String.format("%,d", data.getBalance(sp.getUUID()))));
+                    MobListingGenerator.replenishMarketIfNeeded(data);
                 } else {
                     sp.sendSystemMessage(Component.literal("購入失敗（残高不足 or 売切）"));
                 }
@@ -90,7 +92,7 @@ public class ModNetwork {
             })
         );
 
-        // ── オークション S→C ★追加 ──────────────────────
+        // ── オークション S→C ──────────────────────────────
         reg.playToClient(
             OpenAuctionPayload.TYPE,
             OpenAuctionPayload.STREAM_CODEC,
@@ -107,7 +109,7 @@ public class ModNetwork {
             )
         );
 
-        // ── オークション C→S ★追加 ──────────────────────
+        // ── オークション C→S ──────────────────────────────
         reg.playToServer(
             BidPayload.TYPE,
             BidPayload.STREAM_CODEC,
@@ -136,6 +138,16 @@ public class ModNetwork {
                 if (ok) {
                     sp.sendSystemMessage(Component.literal(
                         "入札しました: ¥" + String.format("%,d", payload.amount())));
+                    // 全プレイヤーへ通知
+                    String itemName = auctionData.getListing(payload.listingId())
+                        .map(l -> l.stack.getHoverName().getString())
+                        .orElse("不明なアイテム");
+                    Component broadcast = Component.literal(
+                        "[オークション] " + sp.getName().getString() +
+                        " が " + itemName +
+                        " に ¥" + String.format("%,d", payload.amount()) + " で入札しました");
+                    sp.getServer().getPlayerList().getPlayers()
+                        .forEach(p -> p.sendSystemMessage(broadcast));
                 } else {
                     sp.sendSystemMessage(Component.literal(
                         "入札失敗（終了済み or 金額不足）"));

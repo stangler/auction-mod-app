@@ -64,8 +64,8 @@ freemarket-mod/
 │   │   ├── MarketCommand.java           # /market open|balance|give
 │   │   └── AuctionCommand.java          # /auction open
 │   ├── client/
-│   │   ├── AuctionScreen.java           # オークションGUI
-│   │   ├── FleaMarketScreen.java        # フリマGUI
+│   │   ├── AuctionScreen.java           # オークションGUI（アイコン表示・入札履歴ツールチップ）
+│   │   ├── FleaMarketScreen.java        # フリマGUI（アイコン表示）
 │   │   └── ClientNetworkHandler.java    # クライアント側パケット処理
 │   ├── data/
 │   │   └── MarketSavedData.java         # 残高・出品・ボーナス・未渡しアイテムキュー管理（永続化）
@@ -74,15 +74,15 @@ freemarket-mod/
 │   ├── market/
 │   │   ├── MarketListing.java           # フリマ出品データ
 │   │   ├── FleaMarketMenu.java          # フリマコンテナメニュー
-│   │   └── MobListingGenerator.java     # モブ自動出品（ワールドロード時・落札/流札後の自動補充）
+│   │   └── MobListingGenerator.java     # モブ自動出品（ワールドロード時・落札/流札/購入後の自動補充）
 │   └── network/
-│       ├── ModNetwork.java              # パケット登録・ハンドラ
+│       ├── ModNetwork.java              # パケット登録・ハンドラ（入札通知・フリマ購入後自動補充）
 │       ├── MarketPackets.java           # 旧パケット定義（後方互換）
 │       └── payload/
 │           ├── OpenMarketPayload.java   # S→C: フリマ画面を開く
 │           ├── OpenAuctionPayload.java  # S→C: オークション画面を開く
-│           ├── SyncListingsPayload.java # S→C: フリマ出品一覧同期
-│           ├── SyncAuctionPayload.java  # S→C: オークション出品一覧同期（入札履歴含む）
+│           ├── SyncListingsPayload.java # S→C: フリマ出品一覧同期（itemId含む）
+│           ├── SyncAuctionPayload.java  # S→C: オークション出品一覧同期（入札履歴・itemId含む）
 │           ├── BuyPayload.java          # C→S: フリマ購入
 │           ├── SellPayload.java         # C→S: フリマ出品
 │           └── BidPayload.java          # C→S: オークション入札
@@ -187,8 +187,10 @@ LevelTickEvent.Post
 - **カウントダウン表示**: `AuctionDto.endTimeMs`（絶対時刻）を `render()` 内で毎フレーム `System.currentTimeMillis()` と差分計算しており、追加対応なしでリアルタイム更新済みと確認
 - **入札履歴GUI表示**: `SyncAuctionPayload.AuctionDto` に `List<BidHistoryEntry>` を追加してDTO転送、`AuctionScreen` でホバー時にツールチップ表示（新しい順・最大5件・「X秒前」形式）
 
-### 🔜 Phase 7: 未実装・改善候補
-- フリマ出品のモブ自動再出品（購入後の補充）
-- 入札時のチャット通知（「〇〇が△△に入札しました」）
-- フリマ・オークション画面のアイテムアイコン表示
-- 出品期限・カテゴリフィルタ
+### ✅ Phase 7: GUI改善・通知
+- **フリマ自動再出品**: 購入後に `MobListingGenerator.replenishMarketIfNeeded()` を呼び出し、モブ出品が8件を下回った場合に自動補充
+- **入札チャット通知**: 入札成功時に全プレイヤーへ `[オークション] プレイヤー名 が アイテム名 に ¥X,XXX で入札しました` を送信
+- **アイテムアイコン表示**: `SyncListingsPayload` / `SyncAuctionPayload` の DTO に `itemId`（レジストリキー）を追加。フリマ・オークション画面の各行に `GuiGraphics.renderItem()` で16x16アイコンを描画
+
+### 🔜 Phase 8: 未実装・改善候補
+- 出品期限・カテゴリフィルタ（変更範囲大：DTO・GUI・保存データ）
