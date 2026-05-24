@@ -56,6 +56,7 @@ public class AuctionTickHandler {
                         MarketSavedData marketData) {
 
         if (listing.hasBid()) {
+            // ── 落札処理 ────────────────────────────────────
             ServerPlayer winner = level.getServer()
                     .getPlayerList().getPlayerByName(listing.topBidderName);
 
@@ -88,15 +89,19 @@ public class AuctionTickHandler {
             marketData.addBalance(listing.sellerUUID, listing.currentBid);
 
         } else {
+            // ── 流札処理 ────────────────────────────────────
             if (isMobSeller(listing)) {
+                // モブ出品: 破棄
                 FreeMarketMod.LOGGER.info(
                     "[FreeMarket] 流札（モブ出品）破棄: {}",
                     listing.stack.getHoverName().getString());
             } else {
+                // プレイヤー出品: 出品者に返却
                 ServerPlayer seller = level.getServer()
                         .getPlayerList().getPlayerByName(listing.sellerName);
 
                 if (seller != null) {
+                    // オンライン → 直接返却
                     if (!seller.getInventory().add(listing.stack.copy())) {
                         seller.drop(listing.stack.copy(), false);
                     }
@@ -104,6 +109,7 @@ public class AuctionTickHandler {
                         "[FreeMarket] 流札のため返却: " +
                         listing.stack.getHoverName().getString()));
                 } else {
+                    // オフライン → pendingItems キュー（次回ログイン時に配送）
                     level.getServer().getProfileCache()
                             .get(listing.sellerName)
                             .ifPresentOrElse(

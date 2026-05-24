@@ -120,7 +120,6 @@ public class ModNetwork {
                 AuctionSavedData auctionData = AuctionSavedData.get(sp.serverLevel());
                 MarketSavedData marketData = MarketSavedData.get(sp.serverLevel());
 
-                // 残高チェック
                 long balance = marketData.getBalance(sp.getUUID());
                 if (balance < payload.amount()) {
                     sp.sendSystemMessage(Component.literal(
@@ -138,7 +137,6 @@ public class ModNetwork {
                 if (ok) {
                     sp.sendSystemMessage(Component.literal(
                         "入札しました: ¥" + String.format("%,d", payload.amount())));
-                    // 全プレイヤーへ通知
                     String itemName = auctionData.getListing(payload.listingId())
                         .map(l -> l.stack.getHoverName().getString())
                         .orElse("不明なアイテム");
@@ -154,6 +152,13 @@ public class ModNetwork {
                 }
                 syncAuctionToPlayer(sp, auctionData, marketData);
             })
+        );
+
+        // ── オークション出品 C→S (Phase 8 追加) ─────────────
+        reg.playToServer(
+            SellAuctionPayload.TYPE,
+            SellAuctionPayload.STREAM_CODEC,
+            MarketPackets::handleSellAuction
         );
     }
 

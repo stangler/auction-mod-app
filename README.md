@@ -59,14 +59,15 @@ freemarket-mod/
 │   │   ├── AuctionListing.java          # 出品データ（入札・期限管理）
 │   │   ├── AuctionMenu.java             # オークションコンテナメニュー
 │   │   ├── AuctionSavedData.java        # オークションデータ永続化
-│   │   └── AuctionTickHandler.java      # 落札処理・全員sync（100tick毎）・モブ流札破棄・自動再出品
+│   │   └── AuctionTickHandler.java      # 落札処理・全員sync（100tick毎）・流札返却/破棄・自動再出品
 │   ├── command/
 │   │   ├── MarketCommand.java           # /market open|balance|give
 │   │   └── AuctionCommand.java          # /auction open
 │   ├── client/
-│   │   ├── AuctionScreen.java           # オークションGUI（アイコン表示・入札履歴ツールチップ）
-│   │   ├── FleaMarketScreen.java        # フリマGUI（アイコン表示）
-│   │   └── ClientNetworkHandler.java    # クライアント側パケット処理
+│   │   ├── AuctionScreen.java           # オークションGUI（一覧/入札タブ・出品タブ・期間選択UI）
+│   │   ├── FleaMarketScreen.java        # フリマGUI（アイコン表示・カテゴリフィルタ）
+│   │   ├── ClientNetworkHandler.java    # クライアント側パケット処理
+│   │   └── ItemCategory.java           # アイテムカテゴリ動的判定（武器/防具/道具/食料/ブロック/その他）
 │   ├── data/
 │   │   └── MarketSavedData.java         # 残高・出品・ボーナス・未渡しアイテムキュー管理（永続化）
 │   ├── event/
@@ -85,7 +86,8 @@ freemarket-mod/
 │           ├── SyncAuctionPayload.java  # S→C: オークション出品一覧同期（入札履歴・itemId含む）
 │           ├── BuyPayload.java          # C→S: フリマ購入
 │           ├── SellPayload.java         # C→S: フリマ出品
-│           └── BidPayload.java          # C→S: オークション入札
+│           ├── BidPayload.java          # C→S: オークション入札
+│           └── SellAuctionPayload.java  # C→S: オークション出品（開始価格・出品期間）
 ├── build.gradle
 ├── gradle.properties
 └── settings.gradle
@@ -114,6 +116,7 @@ freemarket-mod/
 | フリマ購入 | フリマGUIで「購入」ボタン |
 | フリマ出品 | フリマGUIでアイテムを手に持って「出品」ボタン → 価格入力 |
 | オークション入札 | オークションGUIで金額入力 → 「入札する」ボタン |
+| オークション出品 | オークションGUI「出品」タブで価格・期間（3分/30分/1時間）を選択 → 「出品する」ボタン |
 | オークション落札（オンライン） | 期限切れ時にチャット通知＋インベントリに直接付与 |
 | オークション落札（オフライン） | 次回ログイン時に自動配送＋チャット通知 |
 
@@ -194,3 +197,26 @@ LevelTickEvent.Post
 
 ### 🔜 Phase 8: 未実装・改善候補
 - 出品期限・カテゴリフィルタ（変更範囲大：DTO・GUI・保存データ）
+
+### ✅ Phase 8: カテゴリフィルタ・オークション出品期限
+
+**カテゴリフィルタ（フリマ・オークション）**
+- 方式: 動的判定（DTOもSavedDataも変更なし）
+- `ItemCategory.java` 新規追加: ItemStack からカテゴリを判定（武器/防具/道具/食料/ブロック/その他）
+- 食料判定: `stack.has(DataComponents.FOOD)`（`isEdible()` は1.21.1で廃止）
+- 斧は `DiggerItem` 判定により「道具」に分類
+- フリマ・オークション画面上部にタブUIを追加
+
+**オークション出品期限（プレイヤー出品）**
+- `SellAuctionPayload.java` 新規追加: 開始価格 + 出品期間（durationMs）を送信
+- `AuctionScreen` に「出品」タブを追加: 手持ちアイテムプレビュー・価格入力・期間選択ボタン（3分/30分/1時間）
+- 期間選択: `§a§l▶` で選択中を緑強調表示
+- サーバー側バリデーション: 不正な durationMs は 3分にフォールバック
+- `AuctionListing` のコンストラクタ `(sellerUUID, sellerName, stack, startPrice, durationMs)` を流用。endTimeMs への変換はコンストラクタ内で完結
+- 流札挙動: プレイヤー出品 → 出品者に返却（オンライン: 直接付与、オフライン: pendingItems キュー）/ モブ出品 → 従来通り破棄
+- `AuctionTickHandler` は既に流札返却ロジック実装済みにつき変更なし
+
+### 🔜 Phase 9: 改善候補
+- フリマのカテゴリフィルタタブの動作確認・調整
+- オークション出品一覧への「出品期間」列追加
+- 残高不足時の出品ブロック（出品時に最低入札額分を仮ロック）
