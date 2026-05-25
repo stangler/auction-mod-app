@@ -1,4 +1,4 @@
-# FreeMarket Mod - NeoForge 1.21.1
+# AuctionMod - NeoForge 1.21.1
 
 ## 環境
 - Windows 11 + Docker Desktop + VS Code DevContainer
@@ -40,19 +40,19 @@ DevContainer内からMinecraftクライアントは起動不可（GUI非対応�
 
 ```bash
 # 出力先
-build/libs/freemarket-1.0.0.jar
+build/libs/auctionmod-1.0.0.jar
 ```
 
 ---
 
 ## フォルダ構成
 ```
-freemarket-mod/
+auction-mod/
 ├── .devcontainer/
 │   ├── devcontainer.json
 │   └── Dockerfile
-├── src/main/java/com/example/freemarket/
-│   ├── FreeMarketMod.java               # メインクラス・イベント登録
+├── src/main/java/com/example/auction/
+│   ├── AuctionMod.java                  # メインクラス・イベント登録
 │   ├── ModItems.java                    # 日本円コイン
 │   ├── ModMenuTypes.java                # GUIメニュー登録（フリマ・オークション）
 │   ├── auction/
@@ -88,8 +88,8 @@ freemarket-mod/
 │           ├── SellPayload.java         # C→S: フリマ出品
 │           ├── BidPayload.java          # C→S: オークション入札
 │           ├── SellAuctionPayload.java  # C→S: オークション出品（開始価格・出品期間）
-           ├── CancelListingPayload.java  # C→S: フリマ出品取消（Phase 10）
-           └── CancelAuctionPayload.java  # C→S: オークション出品取消（Phase 10）
+│           ├── CancelListingPayload.java  # C→S: フリマ出品取消（Phase 10）
+│           └── CancelAuctionPayload.java  # C→S: オークション出品取消（Phase 10）
 ├── build.gradle
 ├── gradle.properties
 └── settings.gradle
@@ -128,8 +128,8 @@ freemarket-mod/
 
 | ファイル | 内容 |
 |---------|------|
-| `saves/<ワールド名>/data/freemarket_data.dat` | フリマ出品・残高・ボーナス受取済みUUID・未渡しアイテムキュー |
-| `saves/<ワールド名>/data/freemarket_auctions.dat` | オークション出品・入札履歴 |
+| `saves/<ワールド名>/data/auctionmod_data.dat` | フリマ出品・残高・ボーナス受取済みUUID・未渡しアイテムキュー |
+| `saves/<ワールド名>/data/auctionmod_auctions.dat` | オークション出品・入札履歴 |
 
 > 動作確認時にリセットしたい場合は両ファイルを削除して新ワールドを作成。
 
@@ -197,58 +197,40 @@ LevelTickEvent.Post
 - **入札チャット通知**: 入札成功時に全プレイヤーへ `[オークション] プレイヤー名 が アイテム名 に ¥X,XXX で入札しました` を送信
 - **アイテムアイコン表示**: `SyncListingsPayload` / `SyncAuctionPayload` の DTO に `itemId`（レジストリキー）を追加。フリマ・オークション画面の各行に `GuiGraphics.renderItem()` で16x16アイコンを描画
 
-### 🔜 Phase 8: 未実装・改善候補
-- 出品期限・カテゴリフィルタ（変更範囲大：DTO・GUI・保存データ）
-
 ### ✅ Phase 8: カテゴリフィルタ・オークション出品期限
 
 **カテゴリフィルタ（フリマ・オークション）**
 - 方式: 動的判定（DTOもSavedDataも変更なし）
 - `ItemCategory.java` 新規追加: ItemStack からカテゴリを判定（武器/防具/道具/食料/ブロック/その他）
-- 食料判定: `stack.has(DataComponents.FOOD)`（`isEdible()` は1.21.1で廃止）
-- 斧は `DiggerItem` 判定により「道具」に分類
 - フリマ・オークション画面上部にタブUIを追加
 
 **オークション出品期限（プレイヤー出品）**
 - `SellAuctionPayload.java` 新規追加: 開始価格 + 出品期間（durationMs）を送信
 - `AuctionScreen` に「出品」タブを追加: 手持ちアイテムプレビュー・価格入力・期間選択ボタン（3分/30分/1時間）
-- 期間選択: `§a§l▶` で選択中を緑強調表示
 - サーバー側バリデーション: 不正な durationMs は 3分にフォールバック
-- `AuctionListing` のコンストラクタ `(sellerUUID, sellerName, stack, startPrice, durationMs)` を流用。endTimeMs への変換はコンストラクタ内で完結
 - 流札挙動: プレイヤー出品 → 出品者に返却（オンライン: 直接付与、オフライン: pendingItems キュー）/ モブ出品 → 従来通り破棄
-- `AuctionTickHandler` は既に流札返却ロジック実装済みにつき変更なし
 
 ### ✅ Phase 9: カテゴリフィルタ調整・出品期間列・残高チェック
 
 **フリマ カテゴリフィルタ組み込み（FleaMarketScreen）**
-- Phase 8 で作成した `ItemCategory.java` を `FleaMarketScreen` に組み込み（組み込み自体が未実装だった）
 - `selectedCategory` フィールド追加・`getFilteredListings()` でフィルタ
-- タブを手動描画（`rebuildWidgets` を避け `priceBox` 入力を保持）。選択中: 黄色テキスト＋下端黄色ライン、ホバー: 背景色変化
-- ヘッダー右端に件数表示（フィルタ中は「3 / 12 件」形式）
-- タブ切替時にスクロールを0リセット
-- 座標を定数化（`PANEL_Y / TAB_Y / HEADER_Y / LIST_Y`）、スクロールボタン位置をリスト右端に修正
+- タブを手動描画（`rebuildWidgets` を避け `priceBox` 入力を保持）
 
 **オークション一覧「出品期間」列追加**
 - `AuctionListing` に `public final long durationMs` フィールド追加
 - NBT save/load 対応（旧セーブデータはキーなし→0→`"―"` 表示でフォールバック）
 - `SyncAuctionPayload.AuctionDto` に `durationMs` 追加（encode/decode/from 全対応）
-- `AuctionScreen` の列オフセットを5列に再設計、ヘッダー・各行に「期間」列を追加
-- `formatDuration()` ヘルパー: `<10分→"3分"` / `<50分→"30分"` / `それ以上→"1時間"` / `0→"―"`
 
 **残高不足時の出品ブロック（フリマ・オークション）**
 - サーバー側ハンドラ（`SellPayload` / `SellAuctionPayload`）で `getBalance()` チェックを追加
 - 残高不足の場合はチャットにエラーメッセージを送信して処理を中断
-- クライアント側チェックなし（サーバー側のみ）
 
 ### ✅ Phase 10: 出品取消・オークション上限
 
 **② 自分の出品を取り消す機能（GUIボタン）**
 - `CancelListingPayload` / `CancelAuctionPayload` 新規追加（UUID 1個を送信）
 - `ModNetwork.java`: フリマ取消ハンドラ追加（本人確認 → `removeListing` → アイテム返却 → sync）
-- `MarketPackets.java`: `handleCancelAuction` 追加（本人確認 → 入札済みチェック → `removeListing` → アイテム返却 → 全員sync）
 - `MarketSavedData.java`: `removeListing(UUID)` メソッド追加
-- `FleaMarketScreen.java`: 自分の出品行 → 「取消」ボタン（赤）、他人/モブ → 「購入」ボタン（緑）
-- `AuctionScreen.java`: 自分・入札なし → 「取消」（赤）、自分・入札あり → 「取消不可」（グレー）、他人 → 「入札」（青）
 - 取消制約: 入札済みオークションは取消不可（サーバー側 `hasBid()` で弾く）
 - モブ出品は取消不可（サーバー側 `getSellerId()` / `sellerUUID` で本人確認）
 
