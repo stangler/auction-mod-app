@@ -85,7 +85,6 @@ public class ModNetwork {
                     return;
                 }
 
-                // shrink前に名前を保存
                 String itemName = held.getHoverName().getString();
 
                 var listing = new MarketListing(
@@ -100,6 +99,41 @@ public class ModNetwork {
                 sp.sendSystemMessage(Component.literal(
                     itemName + " を ¥" +
                     String.format("%,d", payload.price()) + " で出品しました"));
+                syncListingsToPlayer(sp, data);
+            })
+        );
+
+        // ── フリマ出品取消 C→S (Phase 10 追加) ──────────────
+        reg.playToServer(
+            CancelListingPayload.TYPE,
+            CancelListingPayload.STREAM_CODEC,
+            (payload, ctx) -> ctx.enqueueWork(() -> {
+                if (!(ctx.player() instanceof ServerPlayer sp)) return;
+                MarketSavedData data = MarketSavedData.get(sp.serverLevel());
+
+                var opt = data.getListing(payload.listingId());
+                if (opt.isEmpty()) {
+                    sp.sendSystemMessage(Component.literal("出品が見つかりません"));
+                    return;
+                }
+                var listing = opt.get();
+
+                // 本人確認
+                if (!listing.getSellerId().equals(sp.getUUID())) {
+                    sp.sendSystemMessage(Component.literal("自分の出品のみ取消できます"));
+                    return;
+                }
+
+                // アイテム名を先に取得
+                String itemName = listing.getItemStack().getHoverName().getString();
+
+                // 出品削除してアイテム返却
+                data.removeListing(payload.listingId());
+                sp.getInventory().add(listing.getItemStack());
+
+                sp.sendSystemMessage(Component.literal(
+                    itemName + " の出品を取消しました"));
+
                 syncListingsToPlayer(sp, data);
             })
         );
@@ -171,6 +205,13 @@ public class ModNetwork {
             SellAuctionPayload.TYPE,
             SellAuctionPayload.STREAM_CODEC,
             MarketPackets::handleSellAuction
+        );
+
+        // ── オークション出品取消 C→S (Phase 10 追加) ─────────
+        reg.playToServer(
+            CancelAuctionPayload.TYPE,
+            CancelAuctionPayload.STREAM_CODEC,
+            MarketPackets::handleCancelAuction
         );
     }
 

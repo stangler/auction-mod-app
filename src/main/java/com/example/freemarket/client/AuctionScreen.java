@@ -1,6 +1,7 @@
 package com.example.freemarket.client;
 
 import com.example.freemarket.network.payload.BidPayload;
+import com.example.freemarket.network.payload.CancelAuctionPayload;
 import com.example.freemarket.network.payload.SellAuctionPayload;
 import com.example.freemarket.network.payload.SyncAuctionPayload;
 import net.minecraft.client.gui.GuiGraphics;
@@ -183,6 +184,14 @@ public class AuctionScreen extends Screen {
             selectedDuration == SellAuctionPayload.DURATION_1HOUR ? "§a§l▶1時間" : "1時間"));
     }
 
+    // ── ローカルプレイヤー名取得 ─────────────────────────────
+    private String getLocalPlayerName() {
+        if (this.minecraft != null && this.minecraft.player != null) {
+            return this.minecraft.player.getName().getString();
+        }
+        return "";
+    }
+
     // =====================================================
     // render
     // =====================================================
@@ -253,6 +262,7 @@ public class AuctionScreen extends Screen {
                                 int panelX, int panelW, int panelY, int h) {
         int listY  = getListY();
         int tableW = panelW - 22;
+        String localName = getLocalPlayerName();
 
         // ヘッダー行
         int headerY = panelY + 28;
@@ -269,6 +279,7 @@ public class AuctionScreen extends Screen {
             var dto  = listings.get(i);
             int rowY = listY + (i - scrollOffset) * ROW_HEIGHT;
             boolean isSelected = (i == selectedRow);
+            boolean isOwn      = dto.sellerName().equals(localName);
 
             int rowBg = isSelected ? 0xFF223355
                 : (i % 2 == 0 ? 0xFF1E1E2E : 0xFF252535);
@@ -303,13 +314,32 @@ public class AuctionScreen extends Screen {
             gfx.drawString(this.font,
                 formatDuration(dto.durationMs()), col(panelX, 4), rowY + 6, 0xAA88CC);
 
-            int btnX   = panelX + tableW - 44;
+            // 自分の出品 → 取消ボタン（入札ありの場合はグレーアウト）
+            // 他人の出品 → 入札ボタン
+            int btnX = panelX + tableW - 44;
             boolean hov = mouseX >= btnX && mouseX <= btnX + 42
                        && mouseY >= rowY && mouseY <= rowY + ROW_HEIGHT - 1;
-            gfx.fill(btnX, rowY + 2, btnX + 42, rowY + ROW_HEIGHT - 3,
-                hov ? 0xFF004488 : 0xFF002244);
-            gfx.drawCenteredString(this.font, "入札",
-                btnX + 21, rowY + 6, hov ? 0x88DDFF : 0x4499CC);
+
+            if (isOwn) {
+                boolean hasBid = dto.currentBid() > 0;
+                if (hasBid) {
+                    // 入札済み → グレー（取消不可を視覚的に表現）
+                    gfx.fill(btnX, rowY + 2, btnX + 42, rowY + ROW_HEIGHT - 3, 0xFF333333);
+                    gfx.drawCenteredString(this.font, "取消不可", btnX + 21, rowY + 6, 0x666666);
+                } else {
+                    // 取消可能 → 赤系
+                    gfx.fill(btnX, rowY + 2, btnX + 42, rowY + ROW_HEIGHT - 3,
+                        hov ? 0xFF550000 : 0xFF330000);
+                    gfx.drawCenteredString(this.font, "取消",
+                        btnX + 21, rowY + 6, hov ? 0xFF8888 : 0xCC4444);
+                }
+            } else {
+                // 入札ボタン（青系）
+                gfx.fill(btnX, rowY + 2, btnX + 42, rowY + ROW_HEIGHT - 3,
+                    hov ? 0xFF004488 : 0xFF002244);
+                gfx.drawCenteredString(this.font, "入札",
+                    btnX + 21, rowY + 6, hov ? 0x88DDFF : 0x4499CC);
+            }
         }
 
         if (listings.isEmpty()) {
@@ -487,6 +517,11 @@ public class AuctionScreen extends Screen {
         sellPriceBox.setValue("");
     }
 
+    private void doCancelAuction(UUID listingId) {
+        PacketDistributor.sendToServer(new CancelAuctionPayload(listingId));
+        showStatus("取消リクエストを送信しました", 0xFFAA44);
+    }
+
     // =====================================================
     // 公開 API（ClientNetworkHandler から呼ばれる）
     // =====================================================
@@ -507,6 +542,7 @@ public class AuctionScreen extends Screen {
             int panelW = Math.min(520, w - 40);
             int panelX = (w - panelW) / 2;
             int panelY = 20;
+            String localName = getLocalPlayerName();
 
             // ── タブクリック判定 ──────────────────────────
             int tabY = panelY + 12;
@@ -532,12 +568,27 @@ public class AuctionScreen extends Screen {
                 int end = Math.min(scrollOffset + ROWS_VISIBLE, listings.size());
                 for (int i = scrollOffset; i < end; i++) {
                     int rowY = listY + (i - scrollOffset) * ROW_HEIGHT;
+
+                    // ボタン領域クリック判定
                     if (mouseX >= btnX && mouseX <= btnX + 42
                      && mouseY >= rowY && mouseY <= rowY + ROW_HEIGHT - 1) {
-                        selectedRow = i;
-                        bidBox.setValue(String.valueOf(listings.get(i).minimumBid()));
+                        var dto   = listings.get(i);
+                        boolean isOwn   = dto.sellerName().equals(localName);
+                        boolean hasBid  = dto.currentBid() > 0;
+
+                        if (isOwn && !hasBid) {
+                            // 取消
+                            doCancelAuction(dto.listingId());
+                        } else if (!isOwn) {
+                            // 行選択 + 最低入札額をセット
+                            selectedRow = i;
+                            bidBox.setValue(String.valueOf(dto.minimumBid()));
+                        }
+                        // isOwn && hasBid → 何もしない（グレーアウト）
                         return true;
                     }
+
+                    // 行全体クリック → 選択のみ（自分の出品でも選択は許可）
                     if (mouseX >= panelX && mouseX < panelX + tableW
                      && mouseY >= rowY && mouseY <= rowY + ROW_HEIGHT - 1) {
                         selectedRow = i;

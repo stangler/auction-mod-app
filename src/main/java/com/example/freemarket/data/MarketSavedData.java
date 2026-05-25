@@ -54,6 +54,12 @@ public class MarketSavedData extends SavedData {
         return Optional.ofNullable(listings.get(id));
     }
 
+    /** 出品取消（プレイヤー自身が取り消す場合に使用） */
+    public void removeListing(UUID id) {
+        listings.remove(id);
+        setDirty();
+    }
+
     public List<MarketListing> getActiveListings() {
         return listings.values().stream()
             .filter(l -> !l.isSold())

@@ -1,6 +1,7 @@
 package com.example.freemarket.client;
 
 import com.example.freemarket.network.payload.BuyPayload;
+import com.example.freemarket.network.payload.CancelListingPayload;
 import com.example.freemarket.network.payload.SellPayload;
 import com.example.freemarket.network.payload.SyncListingsPayload;
 import net.minecraft.client.gui.GuiGraphics;
@@ -99,6 +100,15 @@ public class FleaMarketScreen extends Screen {
         return result;
     }
 
+    // ---- ローカルプレイヤー名取得 ----
+
+    private String getLocalPlayerName() {
+        if (this.minecraft != null && this.minecraft.player != null) {
+            return this.minecraft.player.getName().getString();
+        }
+        return "";
+    }
+
     // ---- 描画 ----
 
     @Override
@@ -115,6 +125,8 @@ public class FleaMarketScreen extends Screen {
         int panelW = Math.min(520, w - 40);
         int panelX = (w - panelW) / 2;
         int tableW = panelW - 22;
+
+        String localName = getLocalPlayerName();
 
         // ── タイトル・残高 ──
         gfx.drawCenteredString(this.font, "フリーマーケット", w / 2, PANEL_Y, 0xFFFFAA);
@@ -150,14 +162,27 @@ public class FleaMarketScreen extends Screen {
             gfx.drawString(this.font,
                 "¥" + String.format("%,d", dto.price()),            panelX + 330, rowY + 6, 0xFFDD44);
 
-            // 購入ボタン
+            // 自分の出品 → 取消ボタン、他人の出品 → 購入ボタン
             int btnX = panelX + tableW - 45;
-            boolean hovered = mouseX >= btnX && mouseX < btnX + 42
-                           && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT - 2;
-            gfx.fill(btnX, rowY + 1, btnX + 42, rowY + ROW_HEIGHT - 3,
-                hovered ? 0xFF005500 : 0xFF003300);
-            gfx.drawCenteredString(this.font, "購入",
-                btnX + 21, rowY + 6, hovered ? 0x88FF88 : 0x44CC44);
+            boolean isOwn = dto.sellerName().equals(localName);
+
+            if (isOwn) {
+                // ── 取消ボタン（赤系） ──
+                boolean hovered = mouseX >= btnX && mouseX < btnX + 42
+                               && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT - 2;
+                gfx.fill(btnX, rowY + 1, btnX + 42, rowY + ROW_HEIGHT - 3,
+                    hovered ? 0xFF550000 : 0xFF330000);
+                gfx.drawCenteredString(this.font, "取消",
+                    btnX + 21, rowY + 6, hovered ? 0xFF8888 : 0xCC4444);
+            } else {
+                // ── 購入ボタン（緑系） ──
+                boolean hovered = mouseX >= btnX && mouseX < btnX + 42
+                               && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT - 2;
+                gfx.fill(btnX, rowY + 1, btnX + 42, rowY + ROW_HEIGHT - 3,
+                    hovered ? 0xFF005500 : 0xFF003300);
+                gfx.drawCenteredString(this.font, "購入",
+                    btnX + 21, rowY + 6, hovered ? 0x88FF88 : 0x44CC44);
+            }
         }
 
         // ── 件数表示（ヘッダー右端） ──
@@ -213,6 +238,7 @@ public class FleaMarketScreen extends Screen {
             int panelW = Math.min(520, w - 40);
             int panelX = (w - panelW) / 2;
             int tableW = panelW - 22;
+            String localName = getLocalPlayerName();
 
             // タブクリック判定
             String[] cats = ItemCategory.VALUES;
@@ -229,7 +255,7 @@ public class FleaMarketScreen extends Screen {
                 }
             }
 
-            // 購入ボタンクリック判定
+            // 購入 / 取消ボタンクリック判定
             int btnX = panelX + tableW - 45;
             List<SyncListingsPayload.ListingDto> filtered = getFilteredListings();
             int end = Math.min(scrollOffset + ROWS_VISIBLE, filtered.size());
@@ -237,7 +263,12 @@ public class FleaMarketScreen extends Screen {
                 int rowY = LIST_Y + (i - scrollOffset) * ROW_HEIGHT;
                 if (mouseX >= btnX && mouseX < btnX + 42
                  && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT - 2) {
-                    doBuy(filtered.get(i).listingId());
+                    var dto = filtered.get(i);
+                    if (dto.sellerName().equals(localName)) {
+                        doCancel(dto.listingId());
+                    } else {
+                        doBuy(dto.listingId());
+                    }
                     return true;
                 }
             }
@@ -257,6 +288,10 @@ public class FleaMarketScreen extends Screen {
 
     private void doBuy(UUID listingId) {
         PacketDistributor.sendToServer(new BuyPayload(listingId));
+    }
+
+    private void doCancel(UUID listingId) {
+        PacketDistributor.sendToServer(new CancelListingPayload(listingId));
     }
 
     private void doSell() {

@@ -87,7 +87,9 @@ freemarket-mod/
 │           ├── BuyPayload.java          # C→S: フリマ購入
 │           ├── SellPayload.java         # C→S: フリマ出品
 │           ├── BidPayload.java          # C→S: オークション入札
-│           └── SellAuctionPayload.java  # C→S: オークション出品（開始価格・出品期間）
+│           ├── SellAuctionPayload.java  # C→S: オークション出品（開始価格・出品期間）
+           ├── CancelListingPayload.java  # C→S: フリマ出品取消（Phase 10）
+           └── CancelAuctionPayload.java  # C→S: オークション出品取消（Phase 10）
 ├── build.gradle
 ├── gradle.properties
 └── settings.gradle
@@ -238,7 +240,19 @@ LevelTickEvent.Post
 - 残高不足の場合はチャットにエラーメッセージを送信して処理を中断
 - クライアント側チェックなし（サーバー側のみ）
 
-### 🔜 Phase 10: 改善候補
-- 出品手数料の導入（出品時に残高から一定額を徴収）
-- 自分の出品を取り消す機能（出品取消コマンドまたはGUIボタン）
-- オークション出品上限数の設定（プレイヤーあたりX件まで）
+### ✅ Phase 10: 出品取消・オークション上限
+
+**② 自分の出品を取り消す機能（GUIボタン）**
+- `CancelListingPayload` / `CancelAuctionPayload` 新規追加（UUID 1個を送信）
+- `ModNetwork.java`: フリマ取消ハンドラ追加（本人確認 → `removeListing` → アイテム返却 → sync）
+- `MarketPackets.java`: `handleCancelAuction` 追加（本人確認 → 入札済みチェック → `removeListing` → アイテム返却 → 全員sync）
+- `MarketSavedData.java`: `removeListing(UUID)` メソッド追加
+- `FleaMarketScreen.java`: 自分の出品行 → 「取消」ボタン（赤）、他人/モブ → 「購入」ボタン（緑）
+- `AuctionScreen.java`: 自分・入札なし → 「取消」（赤）、自分・入札あり → 「取消不可」（グレー）、他人 → 「入札」（青）
+- 取消制約: 入札済みオークションは取消不可（サーバー側 `hasBid()` で弾く）
+- モブ出品は取消不可（サーバー側 `getSellerId()` / `sellerUUID` で本人確認）
+
+**③ オークション出品上限数（プレイヤーあたり3件まで）**
+- `MarketPackets.handleSellAuction` に件数チェック追加
+- 上限超過時: 「出品上限に達しています (上限: 3件)」メッセージ
+- 取消・流札・落札で件数が減れば再出品可能
