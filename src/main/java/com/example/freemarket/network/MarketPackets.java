@@ -56,6 +56,15 @@ public class MarketPackets {
         ctx.enqueueWork(() -> {
             if (!(ctx.player() instanceof ServerPlayer sp)) return;
 
+            // ── 残高チェック（¥1以上必要） ──────────────────────
+            MarketSavedData marketData = MarketSavedData.get(sp.serverLevel());
+            long balance = marketData.getBalance(sp.getUUID());
+            if (balance < 1) {
+                sp.sendSystemMessage(Component.literal(
+                    "残高不足で出品できません (残高: ¥" + String.format("%,d", balance) + ")"));
+                return;
+            }
+
             // ── mainhand からアイテム取得（サーバー側で確認） ──
             var held = sp.getMainHandItem();
             if (held.isEmpty()) {
@@ -96,7 +105,6 @@ public class MarketPackets {
                 listing.stack.getHoverName().getString(), sp.getName().getString(), label);
 
             // ── 全プレイヤーへ同期 ─────────────────────────────
-            MarketSavedData marketData = MarketSavedData.get(sp.serverLevel());
             sp.getServer().getPlayerList().getPlayers().forEach(p ->
                 ModNetwork.syncAuctionToPlayer(p, auctionData, marketData));
         });

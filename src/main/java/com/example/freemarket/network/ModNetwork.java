@@ -69,13 +69,25 @@ public class ModNetwork {
                 if (!(ctx.player() instanceof ServerPlayer sp)) return;
                 if (payload.price() <= 0) return;
 
+                MarketSavedData data = MarketSavedData.get(sp.serverLevel());
+
+                // 残高チェック（¥1以上必要）
+                long balance = data.getBalance(sp.getUUID());
+                if (balance < 1) {
+                    sp.sendSystemMessage(Component.literal(
+                        "残高不足で出品できません (残高: ¥" + String.format("%,d", balance) + ")"));
+                    return;
+                }
+
                 var held = sp.getMainHandItem();
                 if (held.isEmpty()) {
                     sp.sendSystemMessage(Component.literal("手にアイテムを持ってください"));
                     return;
                 }
 
-                MarketSavedData data = MarketSavedData.get(sp.serverLevel());
+                // shrink前に名前を保存
+                String itemName = held.getHoverName().getString();
+
                 var listing = new MarketListing(
                     UUID.randomUUID(),
                     sp.getName().getString(),
@@ -86,7 +98,7 @@ public class ModNetwork {
                 data.addListing(listing);
                 held.shrink(held.getCount());
                 sp.sendSystemMessage(Component.literal(
-                    held.getHoverName().getString() + " を ¥" +
+                    itemName + " を ¥" +
                     String.format("%,d", payload.price()) + " で出品しました"));
                 syncListingsToPlayer(sp, data);
             })
