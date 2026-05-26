@@ -64,12 +64,12 @@ auction-mod/
 │   │   ├── MarketCommand.java           # /market open|balance|give
 │   │   └── AuctionCommand.java          # /auction open
 │   ├── client/
-│   │   ├── AuctionScreen.java           # オークションGUI（一覧/入札タブ・出品タブ・期間選択UI）
-│   │   ├── FleaMarketScreen.java        # フリマGUI（アイコン表示・カテゴリフィルタ）
-│   │   ├── ClientNetworkHandler.java    # クライアント側パケット処理
+│   │   ├── AuctionScreen.java           # オークションGUI（一覧/入札タブ・出品タブ・期間選択UI・手数料プレビュー）
+│   │   ├── FleaMarketScreen.java        # フリマGUI（アイコン表示・カテゴリフィルタ・手数料プレビュー）
+│   │   ├── ClientNetworkHandler.java    # クライアント側パケット処理・GUIエラーラベル表示
 │   │   └── ItemCategory.java           # アイテムカテゴリ動的判定（武器/防具/道具/食料/ブロック/その他）
 │   ├── data/
-│   │   └── MarketSavedData.java         # 残高・出品・ボーナス・未渡しアイテムキュー管理（永続化）
+│   │   └── MarketSavedData.java         # 残高・出品・ボーナス・未渡しアイテムキュー管理（永続化）・手数料計算
 │   ├── event/
 │   │   └── PlayerLoginHandler.java      # 初回ログインボーナス付与・未渡しアイテム配送
 │   ├── market/
@@ -89,7 +89,8 @@ auction-mod/
 │           ├── BidPayload.java          # C→S: オークション入札
 │           ├── SellAuctionPayload.java  # C→S: オークション出品（開始価格・出品期間）
 │           ├── CancelListingPayload.java  # C→S: フリマ出品取消（Phase 10）
-│           └── CancelAuctionPayload.java  # C→S: オークション出品取消（Phase 10）
+│           ├── CancelAuctionPayload.java  # C→S: オークション出品取消（Phase 10）
+│           └── ErrorMessagePayload.java   # S→C: GUIエラーラベル表示（Phase 10）
 ├── build.gradle
 ├── gradle.properties
 └── settings.gradle
@@ -238,3 +239,25 @@ LevelTickEvent.Post
 - `MarketPackets.handleSellAuction` に件数チェック追加
 - 上限超過時: 「出品上限に達しています (上限: 3件)」メッセージ
 - 取消・流札・落札で件数が減れば再出品可能
+
+**④ GUI内エラーラベル表示**
+- `ErrorMessagePayload` 新規追加（String message + int color）
+- `ModNetwork.sendError()` helper追加（`COLOR_ERROR` / `COLOR_WARN` / `COLOR_SUCCESS` 定数）
+- フリマ・オークション両画面の下部中央に80tick（4秒）フェードアウト表示
+- `ClientNetworkHandler.handleErrorMessage()` が instanceof 判定して `showStatus()` を呼び出し
+
+### ✅ Phase 10-① 出品手数料の導入
+
+**手数料仕様**
+- 定率5%・最低¥1
+- 売却時徴収（出品時残高チェックなし）
+- 流札時は手数料なし（徴収しない）
+- モブ出品者は手数料免除
+
+**実装内容**
+- `MarketSavedData`: `calcFee(long price)` static メソッド追加（`Math.max(1, round(price * 0.05))`）
+- `MarketSavedData`: `isMobSeller(MarketListing)` private helper追加
+- `MarketSavedData.purchase()`: 売却額から手数料控除して出品者に加算
+- `AuctionTickHandler.settle()`: 落札額から手数料控除、オンライン出品者に「手数料¥X控除 → 受取¥Y」通知
+- `FleaMarketScreen`: 価格入力中に「手数料: 約¥XX」をオレンジ色でリアルタイムプレビュー
+- `AuctionScreen`: 出品タブの「開始価格 :」ラベルが入力時に「開始価格 :  →  手数料: 約¥XX」に変化

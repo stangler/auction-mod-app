@@ -75,10 +75,25 @@ public class MarketSavedData extends SavedData {
         if (buyerBalance < price) return false;
 
         setBalance(buyerId, buyerBalance - price);
-        addBalance(listing.getSellerId(), price);
+        long fee = isMobSeller(listing) ? 0L : calcFee(price);
+        addBalance(listing.getSellerId(), price - fee);
         listing.markSold();
         setDirty();
         return true;
+    }
+
+    // =========================================================
+    // 手数料
+    // =========================================================
+
+    /** 出品手数料：5%・最低¥1（モブ出品者には適用しない） */
+    public static long calcFee(long price) {
+        return Math.max(1L, Math.round(price * 0.05));
+    }
+
+    private static boolean isMobSeller(MarketListing listing) {
+        UUID mobUUID = UUID.nameUUIDFromBytes(listing.getSellerName().getBytes());
+        return listing.getSellerId().equals(mobUUID);
     }
 
     // =========================================================

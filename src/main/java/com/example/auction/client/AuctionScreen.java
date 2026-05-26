@@ -395,8 +395,11 @@ public class AuctionScreen extends Screen {
                 centerX, previewY + 4, 0xFF6666);
         }
 
-        // ラベル類
-        gfx.drawCenteredString(this.font, "開始価格 :", centerX, baseY + 46, 0xCCCCCC);
+        // ラベル類（開始価格は入力時に手数料プレビューを inline 表示）
+        String feeStr = feePreviewText(sellPriceBox.getValue());
+        String priceLabel = feeStr.isEmpty() ? "開始価格 :" : "開始価格 :  →  " + feeStr;
+        int priceColor    = feeStr.isEmpty() ? 0xCCCCCC : 0xFFAA44;
+        gfx.drawCenteredString(this.font, priceLabel, centerX, baseY + 46, priceColor);
         gfx.drawCenteredString(this.font, "出品期間 :", centerX, baseY + 74, 0xCCCCCC);
     }
 
@@ -654,6 +657,19 @@ public class AuctionScreen extends Screen {
 
     private String truncate(String str, int max) {
         return str.length() <= max ? str : str.substring(0, max - 1) + "…";
+    }
+
+    /** 出品価格から手数料プレビュー文字列を生成（クライアント側計算） */
+    private String feePreviewText(String input) {
+        if (input.isEmpty()) return "";
+        try {
+            long price = Long.parseLong(input);
+            if (price <= 0) return "";
+            long fee = Math.max(1L, Math.round(price * 0.05));
+            return "手数料: 約¥" + String.format("%,d", fee);
+        } catch (NumberFormatException e) {
+            return "";
+        }
     }
 
     public void showStatus(String msg, int color) {

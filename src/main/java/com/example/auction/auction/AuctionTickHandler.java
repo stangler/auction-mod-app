@@ -86,7 +86,21 @@ public class AuctionTickHandler {
                         );
             }
 
-            marketData.addBalance(listing.sellerUUID, listing.currentBid);
+            // 落札額を出品者へ（手数料控除・モブ出品者は手数料なし）
+            long fee = isMobSeller(listing) ? 0L : MarketSavedData.calcFee(listing.currentBid);
+            long payout = listing.currentBid - fee;
+            marketData.addBalance(listing.sellerUUID, payout);
+
+            // オンラインの出品者に手数料通知
+            if (!isMobSeller(listing)) {
+                ServerPlayer seller = level.getServer()
+                        .getPlayerList().getPlayerByName(listing.sellerName);
+                if (seller != null) {
+                    seller.sendSystemMessage(Component.literal(String.format(
+                        "[AuctionMod] %s 落札！ 手数料¥%,d控除 → 受取¥%,d",
+                        listing.stack.getHoverName().getString(), fee, payout)));
+                }
+            }
 
         } else {
             // ── 流札処理 ────────────────────────────────────

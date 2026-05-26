@@ -200,6 +200,12 @@ public class FleaMarketScreen extends Screen {
         gfx.fill(panelX, h - 58, panelX + panelW, h - 28, 0xFF222244);
         gfx.drawString(this.font, "手に持ったアイテムを出品:", panelX + 4, h - 54, 0xAAAAFF);
 
+        // 手数料プレビュー（sellButton と priceBox の間）
+        String feeStr = feePreviewText(priceBox.getValue());
+        if (!feeStr.isEmpty()) {
+            gfx.drawString(this.font, feeStr, panelX + 108, h - 46, 0xFFAA44);
+        }
+
         // ── ステータスラベル（サーバーエラー通知） ──
         if (statusTimer > 0) {
             statusTimer--;
@@ -352,5 +358,18 @@ public class FleaMarketScreen extends Screen {
 
     private String truncate(String s, int max) {
         return s.length() <= max ? s : s.substring(0, max - 1) + "…";
+    }
+
+    /** 出品価格から手数料プレビュー文字列を生成（クライアント側計算） */
+    private String feePreviewText(String input) {
+        if (input.isEmpty()) return "";
+        try {
+            long price = Long.parseLong(input);
+            if (price <= 0) return "";
+            long fee = Math.max(1L, Math.round(price * 0.05));
+            return "手数料: 約¥" + String.format("%,d", fee);
+        } catch (NumberFormatException e) {
+            return "";
+        }
     }
 }
