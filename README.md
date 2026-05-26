@@ -59,7 +59,7 @@ auction-mod/
 │   │   ├── AuctionListing.java          # 出品データ（入札・期限管理）
 │   │   ├── AuctionMenu.java             # オークションコンテナメニュー
 │   │   ├── AuctionSavedData.java        # オークションデータ永続化
-│   │   └── AuctionTickHandler.java      # 落札処理・全員sync（100tick毎）・流札返却/破棄・自動再出品
+│   │   └── AuctionTickHandler.java      # 落札処理・全員sync（100tick毎）・流札返却/破棄・自動再出品・モブ落札処理
 │   ├── command/
 │   │   ├── MarketCommand.java           # /market open|balance|give
 │   │   └── AuctionCommand.java          # /auction open
@@ -75,7 +75,9 @@ auction-mod/
 │   ├── market/
 │   │   ├── MarketListing.java           # フリマ出品データ
 │   │   ├── FleaMarketMenu.java          # フリマコンテナメニュー
-│   │   └── MobListingGenerator.java     # モブ自動出品（ワールドロード時・落札/流札/購入後の自動補充）
+│   │   ├── MobListingGenerator.java     # モブ自動出品（ワールドロード時・落札/流札/購入後の自動補充）
+│   │   ├── MobConstants.java            # モブ名定数・UUID生成・モブ判定（Phase 11）
+│   │   └── MobBuyerScheduler.java       # モブ自動購入・入札スケジューラ（60秒毎・Phase 11）
 │   └── network/
 │       ├── ModNetwork.java              # パケット登録・ハンドラ（入札通知・フリマ購入後自動補充）
 │       ├── MarketPackets.java           # 旧パケット定義（後方互換）
@@ -226,38 +228,58 @@ LevelTickEvent.Post
 - サーバー側ハンドラ（`SellPayload` / `SellAuctionPayload`）で `getBalance()` チェックを追加
 - 残高不足の場合はチャットにエラーメッセージを送信して処理を中断
 
-### ✅ Phase 10: 出品取消・オークション上限
+### ✅ Phase 10: 出品取消・オークション上限・手数料・GUIエラーラベル
 
-**② 自分の出品を取り消す機能（GUIボタン）**
+**出品取消**
 - `CancelListingPayload` / `CancelAuctionPayload` 新規追加（UUID 1個を送信）
 - `ModNetwork.java`: フリマ取消ハンドラ追加（本人確認 → `removeListing` → アイテム返却 → sync）
 - `MarketSavedData.java`: `removeListing(UUID)` メソッド追加
 - 取消制約: 入札済みオークションは取消不可（サーバー側 `hasBid()` で弾く）
 - モブ出品は取消不可（サーバー側 `getSellerId()` / `sellerUUID` で本人確認）
 
-**③ オークション出品上限数（プレイヤーあたり3件まで）**
+**オークション出品上限（プレイヤーあたり3件まで）**
 - `MarketPackets.handleSellAuction` に件数チェック追加
 - 上限超過時: 「出品上限に達しています (上限: 3件)」メッセージ
-- 取消・流札・落札で件数が減れば再出品可能
 
-**④ GUI内エラーラベル表示**
+**出品手数料**
+- 定率5%・最低¥1・売却時徴収・流札時なし・モブ免除
+- `MarketSavedData`: `calcFee()` / `isMobSeller()` 追加
+- `AuctionTickHandler.settle()`: 落札額から手数料控除・オンライン出品者に通知
+- フリマ・オークション画面に手数料プレビュー表示
+
+**GUIエラーラベル**
 - `ErrorMessagePayload` 新規追加（String message + int color）
-- `ModNetwork.sendError()` helper追加（`COLOR_ERROR` / `COLOR_WARN` / `COLOR_SUCCESS` 定数）
-- フリマ・オークション両画面の下部中央に80tick（4秒）フェードアウト表示
-- `ClientNetworkHandler.handleErrorMessage()` が instanceof 判定して `showStatus()` を呼び出し
+- `ModNetwork.sendError()` helper追加（`COLOR_ERROR` / `COLOR_WARN` / `COLOR_SUCCESS`）
+- 画面下部中央に80tick（4秒）フェードアウト表示
 
-### ✅ Phase 10-① 出品手数料の導入
+### ✅ Phase 11: モブ自動購入・入札
 
-**手数料仕様**
-- 定率5%・最低¥1
-- 売却時徴収（出品時残高チェックなし）
-- 流札時は手数料なし（徴収しない）
-- モブ出品者は手数料免除
+**概要**
+- 村人A〜E・行商人・ウィッチ・略奪者・ピリジャーがNPCとして市場に参加
+- 60秒毎にフリマ購入・オークション入札を自動実行
 
-**実装内容**
-- `MarketSavedData`: `calcFee(long price)` static メソッド追加（`Math.max(1, round(price * 0.05))`）
-- `MarketSavedData`: `isMobSeller(MarketListing)` private helper追加
-- `MarketSavedData.purchase()`: 売却額から手数料控除して出品者に加算
-- `AuctionTickHandler.settle()`: 落札額から手数料控除、オンライン出品者に「手数料¥X控除 → 受取¥Y」通知
-- `FleaMarketScreen`: 価格入力中に「手数料: 約¥XX」をオレンジ色でリアルタイムプレビュー
-- `AuctionScreen`: 出品タブの「開始価格 :」ラベルが入力時に「開始価格 :  →  手数料: 約¥XX」に変化
+**新規ファイル**
+- `MobConstants.java`: モブ名定数（9種）・`mobUUID()` / `isMobName()` を集約
+- `MobBuyerScheduler.java`: 60秒毎スケジューラ（LevelTickEvent.Post）
+
+**モブ残高**
+- 初期残高: ¥10,000（全モブ共通）
+- `MarketSavedData` の `balances` Map で管理（UUID = `nameUUIDFromBytes(name)`）
+- フリマ購入時は残高消費、オークション落札時は `AuctionTickHandler` が控除
+
+**フリマ購入ロジック**
+- 60秒毎に30%確率で発火
+- アクティブ出品からランダム1件選択
+- 出品者本人モブは購入者候補から除外
+- 残高足りるモブがいなければスキップ
+
+**オークション入札ロジック**
+- 60秒毎にアクティブ出品からランダム1件選択
+- 入札額: `currentBid（またはstartPrice）× 最大150%` の範囲でランダム決定
+- 出品者・現在最高入札者・残高不足モブを候補から除外
+- 再入札: 次回スケジューラ起動時に自然に再抽選
+
+**モブ落札処理（AuctionTickHandler 修正）**
+- `isMobBidder(String)` 追加（`MobConstants.isMobName()` 使用）
+- モブ落札時: 残高控除・アイテム破棄（ゲーム内に実体なし）・ログ出力
+- プレイヤー落札時: 従来通り（オンライン直接付与・オフラインキュー）

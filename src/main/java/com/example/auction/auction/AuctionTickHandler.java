@@ -2,6 +2,7 @@ package com.example.auction.auction;
 
 import com.example.auction.AuctionMod;
 import com.example.auction.data.MarketSavedData;
+import com.example.auction.market.MobConstants;
 import com.example.auction.market.MobListingGenerator;
 import com.example.auction.network.ModNetwork;
 import net.minecraft.network.chat.Component;
@@ -45,10 +46,18 @@ public class AuctionTickHandler {
         }
     }
 
+    // ── 判定ヘルパー ─────────────────────────────────────────
+
     private static boolean isMobSeller(AuctionListing listing) {
         UUID mobUUID = UUID.nameUUIDFromBytes(listing.sellerName.getBytes());
         return listing.sellerUUID.equals(mobUUID);
     }
+
+    private static boolean isMobBidder(String bidderName) {
+        return MobConstants.isMobName(bidderName);
+    }
+
+    // ── 落札・流札処理 ────────────────────────────────────────
 
     private void settle(AuctionListing listing,
                         ServerLevel level,
@@ -57,41 +66,60 @@ public class AuctionTickHandler {
 
         if (listing.hasBid()) {
             // ── 落札処理 ────────────────────────────────────
-            ServerPlayer winner = level.getServer()
-                    .getPlayerList().getPlayerByName(listing.topBidderName);
 
-            if (winner != null) {
-                if (!winner.getInventory().add(listing.stack.copy())) {
-                    winner.drop(listing.stack.copy(), false);
-                }
-                marketData.addBalance(winner.getUUID(), -listing.currentBid);
-                winner.sendSystemMessage(Component.literal(
-                    "[AuctionMod] 落札アイテムを受け取りました: " +
-                    listing.stack.getHoverName().getString()));
+            if (isMobBidder(listing.topBidderName)) {
+                // ── モブ落札 ──
+                // 残高から落札額を徴収（モブは手数料なし）
+                UUID mobId = MobConstants.mobUUID(listing.topBidderName);
+                marketData.addBalance(mobId, -listing.currentBid);
+
+                // アイテムはモブが受け取り → 破棄（ゲーム内に実体なし）
+                AuctionMod.LOGGER.info(
+                    "[AuctionMod] モブ落札（アイテム破棄）: {} ← {} ¥{},",
+                    listing.stack.getHoverName().getString(),
+                    listing.topBidderName,
+                    listing.currentBid);
+
             } else {
-                level.getServer().getProfileCache()
-                        .get(listing.topBidderName)
-                        .ifPresentOrElse(
-                            profile -> {
-                                marketData.addBalance(profile.getId(), -listing.currentBid);
-                                marketData.addPendingItem(profile.getId(), listing.stack);
-                                AuctionMod.LOGGER.info(
-                                    "[AuctionMod] 落札アイテムをキューに追加: {} → {}",
-                                    listing.stack.getHoverName().getString(),
-                                    listing.topBidderName);
-                            },
-                            () -> AuctionMod.LOGGER.warn(
-                                "[AuctionMod] ProfileCache未解決のため未渡しキュー登録不可: {}",
-                                listing.topBidderName)
-                        );
+                // ── プレイヤー落札 ──
+                ServerPlayer winner = level.getServer()
+                        .getPlayerList().getPlayerByName(listing.topBidderName);
+
+                if (winner != null) {
+                    // オンライン → 直接付与
+                    if (!winner.getInventory().add(listing.stack.copy())) {
+                        winner.drop(listing.stack.copy(), false);
+                    }
+                    marketData.addBalance(winner.getUUID(), -listing.currentBid);
+                    winner.sendSystemMessage(Component.literal(
+                        "[AuctionMod] 落札アイテムを受け取りました: " +
+                        listing.stack.getHoverName().getString()));
+                } else {
+                    // オフライン → pendingItems キュー
+                    level.getServer().getProfileCache()
+                            .get(listing.topBidderName)
+                            .ifPresentOrElse(
+                                profile -> {
+                                    marketData.addBalance(profile.getId(), -listing.currentBid);
+                                    marketData.addPendingItem(profile.getId(), listing.stack);
+                                    AuctionMod.LOGGER.info(
+                                        "[AuctionMod] 落札アイテムをキューに追加: {} → {}",
+                                        listing.stack.getHoverName().getString(),
+                                        listing.topBidderName);
+                                },
+                                () -> AuctionMod.LOGGER.warn(
+                                    "[AuctionMod] ProfileCache未解決のため未渡しキュー登録不可: {}",
+                                    listing.topBidderName)
+                            );
+                }
             }
 
             // 落札額を出品者へ（手数料控除・モブ出品者は手数料なし）
-            long fee = isMobSeller(listing) ? 0L : MarketSavedData.calcFee(listing.currentBid);
+            long fee    = isMobSeller(listing) ? 0L : MarketSavedData.calcFee(listing.currentBid);
             long payout = listing.currentBid - fee;
             marketData.addBalance(listing.sellerUUID, payout);
 
-            // オンラインの出品者に手数料通知
+            // オンラインのプレイヤー出品者に手数料通知
             if (!isMobSeller(listing)) {
                 ServerPlayer seller = level.getServer()
                         .getPlayerList().getPlayerByName(listing.sellerName);
@@ -123,7 +151,7 @@ public class AuctionTickHandler {
                         "[AuctionMod] 流札のため返却: " +
                         listing.stack.getHoverName().getString()));
                 } else {
-                    // オフライン → pendingItems キュー（次回ログイン時に配送）
+                    // オフライン → pendingItems キュー
                     level.getServer().getProfileCache()
                             .get(listing.sellerName)
                             .ifPresentOrElse(

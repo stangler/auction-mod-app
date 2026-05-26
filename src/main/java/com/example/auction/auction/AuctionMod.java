@@ -4,6 +4,7 @@ import com.example.auction.auction.AuctionTickHandler;
 import com.example.auction.command.AuctionCommand;
 import com.example.auction.command.MarketCommand;
 import com.example.auction.event.PlayerLoginHandler;
+import com.example.auction.market.MobBuyerScheduler;
 import com.example.auction.network.ModNetwork;
 import com.mojang.logging.LogUtils;
 import net.neoforged.bus.api.IEventBus;
@@ -29,6 +30,7 @@ public class AuctionMod {
         NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
         NeoForge.EVENT_BUS.register(new AuctionTickHandler());
         NeoForge.EVENT_BUS.register(new PlayerLoginHandler());
+        NeoForge.EVENT_BUS.register(new MobBuyerScheduler());
     }
 
     private void commonSetup(FMLCommonSetupEvent event) {
