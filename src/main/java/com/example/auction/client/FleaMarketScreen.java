@@ -20,6 +20,10 @@ import java.util.UUID;
 
 public class FleaMarketScreen extends Screen {
 
+    // ── 上位タブ ──────────────────────────────────────────────
+    private enum MainTab { BROWSE, SELL }
+    private MainTab mainTab = MainTab.BROWSE;
+
     private List<SyncListingsPayload.ListingDto> listings = new ArrayList<>();
     private long balance = 0;
 
@@ -27,25 +31,30 @@ public class FleaMarketScreen extends Screen {
     private static final int ROWS_VISIBLE = 8;
     private static final int ROW_HEIGHT = 20;
 
-    // ---- レイアウト定数（変更時はここだけ直す） ----
-    private static final int PANEL_Y   = 30;  // タイトル/残高行
-    private static final int TAB_Y     = 43;  // カテゴリタブ上端
-    private static final int TAB_H     = 13;  // タブ高さ
-    private static final int HEADER_Y  = 58;  // ヘッダー行上端
-    private static final int LIST_Y    = 74;  // 一覧行上端 (HEADER_Y + 16)
+    // ---- レイアウト定数 ----
+    private static final int PANEL_Y   = 10;  // タイトル/残高行
+    private static final int MAIN_TAB_Y = 22; // 上位タブ（出品一覧/出品する）上端
+    private static final int MAIN_TAB_H = 14; // 上位タブ高さ
+    private static final int TAB_Y     = 38;  // カテゴリタブ上端（出品一覧タブ内のみ）
+    private static final int TAB_H     = 13;  // カテゴリタブ高さ
+    private static final int HEADER_Y  = 53;  // ヘッダー行上端
+    private static final int LIST_Y    = 69;  // 一覧行上端
 
     // カテゴリフィルタ状態
     private String selectedCategory = ItemCategory.ALL;
 
-    // ── ステータスラベル（AuctionScreen と同方式） ────────────
+    // ステータスラベル
     private String statusMessage = "";
     private int    statusColor   = 0xFFFFFF;
     private int    statusTimer   = 0;
 
-    private EditBox priceBox;
-    private Button sellButton;
+    // 出品一覧タブ用ウィジェット
     private Button scrollUpBtn;
     private Button scrollDownBtn;
+
+    // 出品するタブ用ウィジェット
+    private EditBox priceBox;
+    private Button sellButton;
 
     public FleaMarketScreen() {
         super(Component.literal("フリーマーケット"));
@@ -53,40 +62,52 @@ public class FleaMarketScreen extends Screen {
 
     @Override
     protected void init() {
+        super.init();
+    }
+
+    @Override
+    protected void rebuildWidgets() {
+        this.clearWidgets();
+
         int w = this.width;
         int h = this.height;
         int panelW = Math.min(520, w - 40);
         int panelX = (w - panelW) / 2;
 
-        // 出品エリア
-        priceBox = new EditBox(this.font,
-            panelX + panelW - 160, h - 50, 120, 18,
-            Component.literal("価格 (¥)"));
-        priceBox.setMaxLength(10);
-        priceBox.setHint(Component.literal("価格を入力"));
-        priceBox.setFilter(s -> s.isEmpty() || s.matches("\\d+"));
-        this.addRenderableWidget(priceBox);
+        if (mainTab == MainTab.BROWSE) {
+            // スクロールボタン
+            int scrollBtnX = panelX + panelW - 20;
+            scrollUpBtn = Button.builder(Component.literal("▲"),
+                btn -> scrollOffset = Math.max(0, scrollOffset - 1))
+                .bounds(scrollBtnX, LIST_Y, 18, 18).build();
+            this.addRenderableWidget(scrollUpBtn);
 
-        sellButton = Button.builder(
-            Component.literal("出品する"),
-            btn -> doSell()
-        ).bounds(panelX, h - 52, 100, 20).build();
-        this.addRenderableWidget(sellButton);
+            scrollDownBtn = Button.builder(Component.literal("▼"),
+                btn -> {
+                    int max = Math.max(0, getFilteredListings().size() - ROWS_VISIBLE);
+                    scrollOffset = Math.min(max, scrollOffset + 1);
+                })
+                .bounds(scrollBtnX, LIST_Y + 20, 18, 18).build();
+            this.addRenderableWidget(scrollDownBtn);
 
-        // スクロールボタン（一覧の右端・LIST_Y 基準）
-        int scrollBtnX = panelX + panelW - 20;
-        scrollUpBtn = Button.builder(Component.literal("▲"),
-            btn -> scrollOffset = Math.max(0, scrollOffset - 1))
-            .bounds(scrollBtnX, LIST_Y, 18, 18).build();
-        this.addRenderableWidget(scrollUpBtn);
+        } else {
+            // 出品するタブ: 価格入力 + 出品ボタン
+            int sellPanelY = MAIN_TAB_Y + MAIN_TAB_H + 60;
 
-        scrollDownBtn = Button.builder(Component.literal("▼"),
-            btn -> {
-                int max = Math.max(0, getFilteredListings().size() - ROWS_VISIBLE);
-                scrollOffset = Math.min(max, scrollOffset + 1);
-            })
-            .bounds(scrollBtnX, LIST_Y + 20, 18, 18).build();
-        this.addRenderableWidget(scrollDownBtn);
+            priceBox = new EditBox(this.font,
+                panelX + 4, sellPanelY + 20, 160, 18,
+                Component.literal("価格 (¥)"));
+            priceBox.setMaxLength(10);
+            priceBox.setHint(Component.literal("価格を入力 (¥)"));
+            priceBox.setFilter(s -> s.isEmpty() || s.matches("\\d+"));
+            this.addRenderableWidget(priceBox);
+
+            sellButton = Button.builder(
+                Component.literal("出品する"),
+                btn -> doSell()
+            ).bounds(panelX + 170, sellPanelY + 19, 80, 20).build();
+            this.addRenderableWidget(sellButton);
+        }
     }
 
     // ---- フィルタリング ----
@@ -131,25 +152,82 @@ public class FleaMarketScreen extends Screen {
         int panelX = (w - panelW) / 2;
         int tableW = panelW - 22;
 
-        String localName = getLocalPlayerName();
-
         // ── タイトル・残高 ──
         gfx.drawCenteredString(this.font, "フリーマーケット", w / 2, PANEL_Y, 0xFFFFAA);
         gfx.drawString(this.font,
             "残高: ¥" + String.format("%,d", balance), panelX, PANEL_Y, 0x00FF88);
 
-        // ── カテゴリタブ ──
-        renderTabs(gfx, panelX, tableW, mouseX, mouseY);
+        // ── 上位タブ（出品一覧 / 出品する） ──
+        renderMainTabs(gfx, panelX, tableW, mouseX, mouseY);
 
-        // ── ヘッダー ──
+        if (mainTab == MainTab.BROWSE) {
+            renderBrowseTab(gfx, panelX, tableW, mouseX, mouseY);
+        } else {
+            renderSellTab(gfx, panelX, panelW, tableW, mouseX, mouseY, h);
+        }
+
+        // ── ステータスラベル ──
+        if (statusTimer > 0) {
+            statusTimer--;
+            int alpha = Math.min(255, statusTimer * 8);
+            int col   = (statusColor & 0x00FFFFFF) | (alpha << 24);
+            gfx.drawCenteredString(this.font, statusMessage, w / 2, h - 10, col);
+        }
+
+        super.render(gfx, mouseX, mouseY, delta);
+    }
+
+    /** 上位タブ（出品一覧 / 出品する）描画 */
+    private void renderMainTabs(GuiGraphics gfx, int panelX, int tableW, int mouseX, int mouseY) {
+        int tabW = tableW / 2;
+        String[] labels = { "出品一覧", "出品する" };
+        MainTab[] tabs  = { MainTab.BROWSE, MainTab.SELL };
+
+        for (int i = 0; i < 2; i++) {
+            int tabX   = panelX + i * tabW;
+            int thisW  = (i == 1) ? tableW - tabW : tabW;
+            boolean active  = mainTab == tabs[i];
+            boolean hovered = mouseX >= tabX && mouseX < tabX + thisW
+                           && mouseY >= MAIN_TAB_Y && mouseY < MAIN_TAB_Y + MAIN_TAB_H;
+
+            int bg = active  ? 0xFF3A5A3A
+                   : hovered ? 0xFF2A3A2A
+                   :           0xFF1A271A;
+            int fg = active  ? 0xFF88FF88
+                   : hovered ? 0xFFAACC88
+                   :           0xFF557755;
+
+            gfx.fill(tabX, MAIN_TAB_Y, tabX + thisW - 1, MAIN_TAB_Y + MAIN_TAB_H, bg);
+            if (active) {
+                gfx.fill(tabX, MAIN_TAB_Y + MAIN_TAB_H - 2,
+                         tabX + thisW - 1, MAIN_TAB_Y + MAIN_TAB_H, 0xFF88FF88);
+            }
+            gfx.drawCenteredString(this.font, labels[i], tabX + thisW / 2, MAIN_TAB_Y + 3, fg);
+        }
+    }
+
+    /** 出品一覧タブ描画 */
+    private void renderBrowseTab(GuiGraphics gfx, int panelX, int tableW, int mouseX, int mouseY) {
+        String localName = getLocalPlayerName();
+
+        // カテゴリタブ
+        renderCategoryTabs(gfx, panelX, tableW, mouseX, mouseY);
+
+        // ヘッダー
         gfx.fill(panelX, HEADER_Y, panelX + tableW, HEADER_Y + 14, 0xFF555555);
         gfx.drawString(this.font, "出品者",   panelX + 4,   HEADER_Y + 3, 0xFFFFFF);
         gfx.drawString(this.font, "アイテム", panelX + 130, HEADER_Y + 3, 0xFFFFFF);
         gfx.drawString(this.font, "数量",     panelX + 280, HEADER_Y + 3, 0xFFFFFF);
         gfx.drawString(this.font, "価格",     panelX + 330, HEADER_Y + 3, 0xFFFFFF);
 
-        // ── 一覧 ──
+        // 件数
         List<SyncListingsPayload.ListingDto> filtered = getFilteredListings();
+        String countText = ItemCategory.ALL.equals(selectedCategory)
+            ? filtered.size() + " 件"
+            : filtered.size() + " / " + listings.size() + " 件";
+        gfx.drawString(this.font, countText, panelX + tableW - 60, HEADER_Y + 3, 0x888888);
+
+        // 一覧
         int end = Math.min(scrollOffset + ROWS_VISIBLE, filtered.size());
         for (int i = scrollOffset; i < end; i++) {
             var dto = filtered.get(i);
@@ -167,12 +245,10 @@ public class FleaMarketScreen extends Screen {
             gfx.drawString(this.font,
                 "¥" + String.format("%,d", dto.price()),            panelX + 330, rowY + 6, 0xFFDD44);
 
-            // 自分の出品 → 取消ボタン、他人の出品 → 購入ボタン
             int btnX = panelX + tableW - 45;
             boolean isOwn = dto.sellerName().equals(localName);
 
             if (isOwn) {
-                // ── 取消ボタン（赤系） ──
                 boolean hovered = mouseX >= btnX && mouseX < btnX + 42
                                && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT - 2;
                 gfx.fill(btnX, rowY + 1, btnX + 42, rowY + ROW_HEIGHT - 3,
@@ -180,7 +256,6 @@ public class FleaMarketScreen extends Screen {
                 gfx.drawCenteredString(this.font, "取消",
                     btnX + 21, rowY + 6, hovered ? 0xFF8888 : 0xCC4444);
             } else {
-                // ── 購入ボタン（緑系） ──
                 boolean hovered = mouseX >= btnX && mouseX < btnX + 42
                                && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT - 2;
                 gfx.fill(btnX, rowY + 1, btnX + 42, rowY + ROW_HEIGHT - 3,
@@ -189,43 +264,91 @@ public class FleaMarketScreen extends Screen {
                     btnX + 21, rowY + 6, hovered ? 0x88FF88 : 0x44CC44);
             }
         }
-
-        // ── 件数表示（ヘッダー右端） ──
-        String countText = ItemCategory.ALL.equals(selectedCategory)
-            ? filtered.size() + " 件"
-            : filtered.size() + " / " + listings.size() + " 件";
-        gfx.drawString(this.font, countText, panelX + tableW - 60, HEADER_Y + 3, 0x888888);
-
-        // ── 出品エリア ──
-        gfx.fill(panelX, h - 58, panelX + panelW, h - 28, 0xFF222244);
-        gfx.drawString(this.font, "手に持ったアイテムを出品:", panelX + 4, h - 54, 0xAAAAFF);
-
-        // 手数料プレビュー（sellButton と priceBox の間）
-        String feeStr = feePreviewText(priceBox.getValue());
-        if (!feeStr.isEmpty()) {
-            gfx.drawString(this.font, feeStr, panelX + 108, h - 46, 0xFFAA44);
-        }
-
-        // ── ステータスラベル（サーバーエラー通知） ──
-        if (statusTimer > 0) {
-            statusTimer--;
-            int alpha = Math.min(255, statusTimer * 8);
-            int col   = (statusColor & 0x00FFFFFF) | (alpha << 24);
-            gfx.drawCenteredString(this.font, statusMessage, w / 2, h - 18, col);
-        }
-
-        super.render(gfx, mouseX, mouseY, delta);
     }
 
-    /** カテゴリタブを手動描画（rebuildWidgets なしで選択状態をハイライト） */
-    private void renderTabs(GuiGraphics gfx, int panelX, int tableW, int mouseX, int mouseY) {
+    /** 出品するタブ描画 */
+    private void renderSellTab(GuiGraphics gfx, int panelX, int panelW, int tableW,
+                                int mouseX, int mouseY, int h) {
+        String localName = getLocalPlayerName();
+        int baseY = MAIN_TAB_Y + MAIN_TAB_H + 8;
+
+        // ── 手持ちアイテム表示エリア ──
+        gfx.fill(panelX, baseY, panelX + panelW, baseY + 50, 0xFF1A1A2E);
+        gfx.drawString(this.font, "出品アイテム（手に持ったもの）", panelX + 4, baseY + 4, 0xAAAAFF);
+
+        ItemStack held = ItemStack.EMPTY;
+        if (this.minecraft != null && this.minecraft.player != null) {
+            held = this.minecraft.player.getMainHandItem();
+        }
+
+        if (held.isEmpty()) {
+            gfx.drawString(this.font, "アイテムを手に持ってください", panelX + 24, baseY + 20, 0xFF6666);
+        } else {
+            gfx.renderItem(held, panelX + 4, baseY + 20);
+            String itemName = held.getHoverName().getString();
+            gfx.drawString(this.font, itemName,         panelX + 24, baseY + 22, 0xFFFFFF);
+            gfx.drawString(this.font, "x" + held.getCount(), panelX + 24, baseY + 33, 0xAAAAAA);
+        }
+
+        // ── 価格入力エリア ──
+        int sellPanelY = baseY + 58;
+        gfx.fill(panelX, sellPanelY, panelX + panelW, sellPanelY + 50, 0xFF1A1A2E);
+        gfx.drawString(this.font, "価格設定", panelX + 4, sellPanelY + 4, 0xAAAAFF);
+
+        // 手数料プレビュー
+        if (priceBox != null) {
+            String feeStr = feePreviewText(priceBox.getValue());
+            if (!feeStr.isEmpty()) {
+                gfx.drawString(this.font, feeStr, panelX + 260, sellPanelY + 23, 0xFFAA44);
+            }
+        }
+
+        // ── 自分の出品中リスト ──
+        int myListY = sellPanelY + 58;
+        gfx.fill(panelX, myListY, panelX + panelW, myListY + 14, 0xFF444444);
+        gfx.drawString(this.font, "出品中のアイテム（最大3件）", panelX + 4, myListY + 3, 0xCCCCCC);
+
+        List<SyncListingsPayload.ListingDto> myListings = new ArrayList<>();
+        for (var dto : listings) {
+            if (dto.sellerName().equals(localName)) myListings.add(dto);
+        }
+
+        if (myListings.isEmpty()) {
+            gfx.drawString(this.font, "出品中なし", panelX + 4, myListY + 18, 0x666666);
+        } else {
+            for (int i = 0; i < myListings.size() && i < 3; i++) {
+                var dto = myListings.get(i);
+                int rowY = myListY + 14 + i * ROW_HEIGHT;
+                int rowBg = (i % 2 == 0) ? 0xFF2A2A2A : 0xFF333333;
+                gfx.fill(panelX, rowY, panelX + tableW, rowY + ROW_HEIGHT - 2, rowBg);
+
+                ItemStack icon = makeIconStack(dto.itemId(), dto.itemCount());
+                gfx.renderItem(icon, panelX + 4, rowY + 2);
+                gfx.drawString(this.font, truncate(dto.itemName(), 15), panelX + 24, rowY + 6, 0xFFFFFF);
+                gfx.drawString(this.font, "x" + dto.itemCount(), panelX + 200, rowY + 6, 0xAAAAAA);
+                gfx.drawString(this.font,
+                    "¥" + String.format("%,d", dto.price()), panelX + 240, rowY + 6, 0xFFDD44);
+
+                // 取消ボタン
+                int btnX = panelX + tableW - 45;
+                boolean hovered = mouseX >= btnX && mouseX < btnX + 42
+                               && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT - 2;
+                gfx.fill(btnX, rowY + 1, btnX + 42, rowY + ROW_HEIGHT - 3,
+                    hovered ? 0xFF550000 : 0xFF330000);
+                gfx.drawCenteredString(this.font, "取消",
+                    btnX + 21, rowY + 6, hovered ? 0xFF8888 : 0xCC4444);
+            }
+        }
+    }
+
+    /** カテゴリタブ描画（出品一覧タブ内のみ） */
+    private void renderCategoryTabs(GuiGraphics gfx, int panelX, int tableW, int mouseX, int mouseY) {
         String[] cats = ItemCategory.VALUES;
         int totalW = tableW;
         int tabW = totalW / cats.length;
 
         for (int i = 0; i < cats.length; i++) {
             int tabX = panelX + i * tabW;
-            // 最後のタブは余白を吸収
             int thisW = (i == cats.length - 1) ? totalW - tabW * (cats.length - 1) : tabW;
 
             boolean active  = cats[i].equals(selectedCategory);
@@ -239,8 +362,7 @@ public class FleaMarketScreen extends Screen {
                    : hovered ? 0xFFCCCCCC
                    :           0xFF888888;
 
-            gfx.fill(tabX,     TAB_Y,          tabX + thisW - 1, TAB_Y + TAB_H, bg);
-            // アクティブタブは下端に黄色ライン
+            gfx.fill(tabX, TAB_Y, tabX + thisW - 1, TAB_Y + TAB_H, bg);
             if (active) {
                 gfx.fill(tabX, TAB_Y + TAB_H - 2, tabX + thisW - 1, TAB_Y + TAB_H, 0xFFFFDD44);
             }
@@ -257,38 +379,80 @@ public class FleaMarketScreen extends Screen {
             int panelW = Math.min(520, w - 40);
             int panelX = (w - panelW) / 2;
             int tableW = panelW - 22;
-            String localName = getLocalPlayerName();
 
-            // タブクリック判定
-            String[] cats = ItemCategory.VALUES;
-            int tabW = tableW / cats.length;
-            if (mouseY >= TAB_Y && mouseY < TAB_Y + TAB_H) {
-                for (int i = 0; i < cats.length; i++) {
-                    int tabX = panelX + i * tabW;
-                    int thisW = (i == cats.length - 1) ? tableW - tabW * (cats.length - 1) : tabW;
-                    if (mouseX >= tabX && mouseX < tabX + thisW) {
-                        selectedCategory = cats[i];
-                        scrollOffset = 0;
-                        return true;
+            // ── 上位タブクリック ──
+            if (mouseY >= MAIN_TAB_Y && mouseY < MAIN_TAB_Y + MAIN_TAB_H) {
+                int tabW = tableW / 2;
+                if (mouseX >= panelX && mouseX < panelX + tabW) {
+                    if (mainTab != MainTab.BROWSE) {
+                        mainTab = MainTab.BROWSE;
+                        rebuildWidgets();
                     }
+                    return true;
+                } else if (mouseX >= panelX + tabW && mouseX < panelX + tableW) {
+                    if (mainTab != MainTab.SELL) {
+                        mainTab = MainTab.SELL;
+                        rebuildWidgets();
+                    }
+                    return true;
                 }
             }
 
-            // 購入 / 取消ボタンクリック判定
-            int btnX = panelX + tableW - 45;
-            List<SyncListingsPayload.ListingDto> filtered = getFilteredListings();
-            int end = Math.min(scrollOffset + ROWS_VISIBLE, filtered.size());
-            for (int i = scrollOffset; i < end; i++) {
-                int rowY = LIST_Y + (i - scrollOffset) * ROW_HEIGHT;
-                if (mouseX >= btnX && mouseX < btnX + 42
-                 && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT - 2) {
-                    var dto = filtered.get(i);
-                    if (dto.sellerName().equals(localName)) {
-                        doCancel(dto.listingId());
-                    } else {
-                        doBuy(dto.listingId());
+            if (mainTab == MainTab.BROWSE) {
+                // カテゴリタブクリック
+                String[] cats = ItemCategory.VALUES;
+                int tabW = tableW / cats.length;
+                if (mouseY >= TAB_Y && mouseY < TAB_Y + TAB_H) {
+                    for (int i = 0; i < cats.length; i++) {
+                        int tabX = panelX + i * tabW;
+                        int thisW = (i == cats.length - 1) ? tableW - tabW * (cats.length - 1) : tabW;
+                        if (mouseX >= tabX && mouseX < tabX + thisW) {
+                            selectedCategory = cats[i];
+                            scrollOffset = 0;
+                            return true;
+                        }
                     }
-                    return true;
+                }
+
+                // 購入/取消クリック（出品一覧）
+                String localName = getLocalPlayerName();
+                int btnX = panelX + tableW - 45;
+                List<SyncListingsPayload.ListingDto> filtered = getFilteredListings();
+                int end = Math.min(scrollOffset + ROWS_VISIBLE, filtered.size());
+                for (int i = scrollOffset; i < end; i++) {
+                    int rowY = LIST_Y + (i - scrollOffset) * ROW_HEIGHT;
+                    if (mouseX >= btnX && mouseX < btnX + 42
+                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT - 2) {
+                        var dto = filtered.get(i);
+                        if (dto.sellerName().equals(localName)) {
+                            doCancel(dto.listingId());
+                        } else {
+                            doBuy(dto.listingId());
+                        }
+                        return true;
+                    }
+                }
+
+            } else {
+                // 出品するタブ: 自分の出品取消クリック
+                String localName = getLocalPlayerName();
+                int baseY = MAIN_TAB_Y + MAIN_TAB_H + 8;
+                int sellPanelY = baseY + 58;
+                int myListY = sellPanelY + 58;
+
+                List<SyncListingsPayload.ListingDto> myListings = new ArrayList<>();
+                for (var dto : listings) {
+                    if (dto.sellerName().equals(localName)) myListings.add(dto);
+                }
+
+                int btnX = panelX + tableW - 45;
+                for (int i = 0; i < myListings.size() && i < 3; i++) {
+                    int rowY = myListY + 14 + i * ROW_HEIGHT;
+                    if (mouseX >= btnX && mouseX < btnX + 42
+                     && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT - 2) {
+                        doCancel(myListings.get(i).listingId());
+                        return true;
+                    }
                 }
             }
         }
@@ -297,10 +461,13 @@ public class FleaMarketScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        int max = Math.max(0, getFilteredListings().size() - ROWS_VISIBLE);
-        if (scrollY > 0) scrollOffset = Math.max(0, scrollOffset - 1);
-        else             scrollOffset = Math.min(max, scrollOffset + 1);
-        return true;
+        if (mainTab == MainTab.BROWSE) {
+            int max = Math.max(0, getFilteredListings().size() - ROWS_VISIBLE);
+            if (scrollY > 0) scrollOffset = Math.max(0, scrollOffset - 1);
+            else             scrollOffset = Math.min(max, scrollOffset + 1);
+            return true;
+        }
+        return false;
     }
 
     // ---- ネットワーク ----
@@ -314,6 +481,7 @@ public class FleaMarketScreen extends Screen {
     }
 
     private void doSell() {
+        if (priceBox == null) return;
         String txt = priceBox.getValue().trim();
         if (txt.isEmpty()) return;
         try {
@@ -324,12 +492,11 @@ public class FleaMarketScreen extends Screen {
         } catch (NumberFormatException ignored) {}
     }
 
-    // ---- データ更新（サーバーからの同期時に呼ばれる） ----
+    // ---- データ更新 ----
 
     public void updateListings(List<SyncListingsPayload.ListingDto> newListings, long newBalance) {
         this.listings = new ArrayList<>(newListings);
         this.balance = newBalance;
-        // フィルタ後のサイズでスクロール上限を再計算
         int max = Math.max(0, getFilteredListings().size() - ROWS_VISIBLE);
         this.scrollOffset = Math.min(scrollOffset, max);
     }
@@ -345,12 +512,10 @@ public class FleaMarketScreen extends Screen {
         }
     }
 
-    // ---- ステータスラベル（ClientNetworkHandler から呼ばれる） ----
-
     public void showStatus(String msg, int color) {
         statusMessage = msg;
         statusColor   = color;
-        statusTimer   = 80;   // AuctionScreen と同じ 80tick（4秒）
+        statusTimer   = 80;
     }
 
     @Override
@@ -360,7 +525,6 @@ public class FleaMarketScreen extends Screen {
         return s.length() <= max ? s : s.substring(0, max - 1) + "…";
     }
 
-    /** 出品価格から手数料プレビュー文字列を生成（クライアント側計算） */
     private String feePreviewText(String input) {
         if (input.isEmpty()) return "";
         try {
