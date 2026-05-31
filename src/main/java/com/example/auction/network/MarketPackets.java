@@ -54,15 +54,7 @@ public class MarketPackets {
         ctx.enqueueWork(() -> {
             if (!(ctx.player() instanceof ServerPlayer sp)) return;
 
-            // ── 残高チェック（¥1以上必要） ──────────────────────
             MarketSavedData marketData = MarketSavedData.get(sp.serverLevel());
-            long balance = marketData.getBalance(sp.getUUID());
-            if (balance < 1) {
-                ModNetwork.sendError(sp,
-                    "残高不足で出品できません (残高: ¥" + String.format("%,d", balance) + ")",
-                    ModNetwork.COLOR_ERROR);
-                return;
-            }
 
             // ── 出品上限チェック（プレイヤーあたり3件まで） ────────
             AuctionSavedData auctionData = AuctionSavedData.get(sp.serverLevel());

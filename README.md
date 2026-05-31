@@ -283,3 +283,9 @@ LevelTickEvent.Post
 - `isMobBidder(String)` 追加（`MobConstants.isMobName()` 使用）
 - モブ落札時: 残高控除・アイテム破棄（ゲーム内に実体なし）・ログ出力
 - プレイヤー落札時: 従来通り（オンライン直接付与・オフラインキュー）
+### ✅ Phase 12: 出品時残高チェック撤廃
+
+**バグ修正: 残高¥0でも出品可能に**
+- `ModNetwork.java` (`SellPayload` ハンドラ) / `MarketPackets.java` (`handleSellAuction`) の `balance < 1` チェックを削除
+- 手数料は売却時徴収の仕様であり、出品時に残高は不要
+- Phase 9 で追加した残高チェックが仕様と矛盾していたため撤廃

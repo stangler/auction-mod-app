@@ -86,15 +86,6 @@ public class ModNetwork {
 
                 MarketSavedData data = MarketSavedData.get(sp.serverLevel());
 
-                // 残高チェック（¥1以上必要）
-                long balance = data.getBalance(sp.getUUID());
-                if (balance < 1) {
-                    sendError(sp,
-                        "残高不足で出品できません (残高: ¥" + String.format("%,d", balance) + ")",
-                        COLOR_ERROR);
-                    return;
-                }
-
                 var held = sp.getMainHandItem();
                 if (held.isEmpty()) {
                     sendError(sp, "手にアイテムを持ってください", COLOR_WARN);
