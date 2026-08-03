@@ -1,14 +1,40 @@
 package com.example.auction.auction;
 
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.world.item.ItemStack;
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.Tag;
+import net.minecraft.resources.RegistryOps;
+import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public class AuctionListing {
+
+    private static final Codec<BidEntry> BID_ENTRY_CODEC = RecordCodecBuilder.create(inst -> inst.group(
+        Codec.STRING.fieldOf("bidder").forGetter(BidEntry::bidderName),
+        Codec.LONG.fieldOf("amount").forGetter(BidEntry::amount),
+        Codec.LONG.fieldOf("ts").forGetter(BidEntry::timestampMs)
+    ).apply(inst, BidEntry::new));
+
+    public static final Codec<AuctionListing> CODEC = RecordCodecBuilder.create(inst -> inst.group(
+        Codec.STRING.xmap(UUID::fromString, UUID::toString).fieldOf("id").forGetter(l -> l.id),
+        Codec.STRING.xmap(UUID::fromString, UUID::toString).fieldOf("sellerUUID").forGetter(l -> l.sellerUUID),
+        Codec.STRING.fieldOf("sellerName").forGetter(l -> l.sellerName),
+        ItemStack.CODEC.fieldOf("item").forGetter(l -> l.stack),
+        Codec.LONG.fieldOf("startPrice").forGetter(l -> l.startPrice),
+        Codec.LONG.fieldOf("durationMs").forGetter(l -> l.durationMs),
+        Codec.LONG.fieldOf("endTimeMs").forGetter(l -> l.endTimeMs),
+        Codec.LONG.fieldOf("currentBid").forGetter(l -> l.currentBid),
+        Codec.STRING.fieldOf("topBidder").forGetter(l -> l.topBidderName),
+        BID_ENTRY_CODEC.listOf().fieldOf("bidHistory").forGetter(l -> l.bidHistory)
+    ).apply(inst, AuctionListing::new));
 
     public final UUID id;
     public final UUID sellerUUID;
@@ -31,7 +57,11 @@ public class AuctionListing {
             return t;
         }
         public static BidEntry load(CompoundTag t) {
-            return new BidEntry(t.getString("bidder"), t.getLong("amount"), t.getLong("ts"));
+            return new BidEntry(
+                t.getStringOr("bidder", ""),
+                t.getLongOr("amount", 0L),
+                t.getLongOr("ts", 0L)
+            );
         }
     }
 
@@ -51,10 +81,10 @@ public class AuctionListing {
     }
 
     // NBTロード用
-    private AuctionListing(UUID id, UUID sellerUUID, String sellerName, ItemStack stack,
-                           long startPrice, long durationMs, long endTimeMs,
-                           long currentBid, String topBidderName,
-                           List<BidEntry> bidHistory) {
+    public AuctionListing(UUID id, UUID sellerUUID, String sellerName, ItemStack stack,
+                          long startPrice, long durationMs, long endTimeMs,
+                          long currentBid, String topBidderName,
+                          List<BidEntry> bidHistory) {
         this.id             = id;
         this.sellerUUID     = sellerUUID;
         this.sellerName     = sellerName;
@@ -89,15 +119,15 @@ public class AuctionListing {
 
     public CompoundTag save(HolderLookup.Provider registries) {
         CompoundTag t = new CompoundTag();
-        t.putUUID("id",          id);
-        t.putUUID("sellerUUID",  sellerUUID);
-        t.putString("seller",    sellerName);
-        t.put("item",            stack.save(registries));
-        t.putLong("startPrice",  startPrice);
-        t.putLong("durationMs",  durationMs);
-        t.putLong("endTimeMs",   endTimeMs);
-        t.putLong("currentBid",  currentBid);
-        t.putString("topBidder", topBidderName);
+        t.putString("id",           id.toString());
+        t.putString("sellerUUID",   sellerUUID.toString());
+        t.putString("seller",       sellerName);
+        t.put("item",               saveItemStack(stack, registries));
+        t.putLong("startPrice",     startPrice);
+        t.putLong("durationMs",     durationMs);
+        t.putLong("endTimeMs",      endTimeMs);
+        t.putLong("currentBid",     currentBid);
+        t.putString("topBidder",    topBidderName);
 
         CompoundTag history = new CompoundTag();
         history.putInt("size", bidHistory.size());
@@ -109,24 +139,39 @@ public class AuctionListing {
     }
 
     public static AuctionListing load(CompoundTag t, HolderLookup.Provider registries) {
-        UUID id           = t.getUUID("id");
-        UUID sellerUUID   = t.getUUID("sellerUUID");
-        String seller     = t.getString("seller");
-        ItemStack stack   = ItemStack.parseOptional(registries, t.getCompound("item"));
-        long startPrice   = t.getLong("startPrice");
-        long durationMs   = t.getLong("durationMs"); // 旧データは0（"―"表示）
-        long endTimeMs    = t.getLong("endTimeMs");
-        long currentBid   = t.getLong("currentBid");
-        String topBidder  = t.getString("topBidder");
+        UUID id           = UUID.fromString(t.getStringOr("id", UUID.randomUUID().toString()));
+        UUID sellerUUID   = UUID.fromString(t.getStringOr("sellerUUID", UUID.randomUUID().toString()));
+        String seller     = t.getStringOr("seller", "");
+        ItemStack stack   = loadItemStack(t.getCompoundOrEmpty("item"), registries);
+        long startPrice   = t.getLongOr("startPrice", 0L);
+        long durationMs   = t.getLongOr("durationMs", 0L); // 旧データは0（"―"表示）
+        long endTimeMs    = t.getLongOr("endTimeMs", 0L);
+        long currentBid   = t.getLongOr("currentBid", 0L);
+        String topBidder  = t.getStringOr("topBidder", "");
 
-        CompoundTag history = t.getCompound("bidHistory");
-        int size = history.getInt("size");
+        CompoundTag history = t.getCompoundOrEmpty("bidHistory");
+        int size = history.getIntOr("size", 0);
         List<BidEntry> entries = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            entries.add(BidEntry.load(history.getCompound(String.valueOf(i))));
+            entries.add(BidEntry.load(history.getCompoundOrEmpty(String.valueOf(i))));
         }
 
         return new AuctionListing(id, sellerUUID, seller, stack, startPrice, durationMs, endTimeMs,
                                   currentBid, topBidder, entries);
+    }
+
+    // ItemStack の Codec ベース保存
+    public static CompoundTag saveItemStack(ItemStack stack, HolderLookup.Provider registries) {
+        RegistryOps<Tag> ops = RegistryOps.create(NbtOps.INSTANCE, registries);
+        return ItemStack.CODEC.encodeStart(ops, stack).result()
+            .filter(t -> t instanceof CompoundTag)
+            .map(t -> (CompoundTag) t)
+            .orElseGet(CompoundTag::new);
+    }
+
+    public static ItemStack loadItemStack(CompoundTag tag, HolderLookup.Provider registries) {
+        if (tag.isEmpty()) return ItemStack.EMPTY;
+        RegistryOps<Tag> ops = RegistryOps.create(NbtOps.INSTANCE, registries);
+        return ItemStack.CODEC.parse(ops, tag).result().orElse(ItemStack.EMPTY);
     }
 }

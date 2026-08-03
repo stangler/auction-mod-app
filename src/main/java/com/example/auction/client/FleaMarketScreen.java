@@ -4,15 +4,16 @@ import com.example.auction.network.payload.BuyPayload;
 import com.example.auction.network.payload.CancelListingPayload;
 import com.example.auction.network.payload.SellPayload;
 import com.example.auction.network.payload.SyncListingsPayload;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,7 +46,7 @@ public class FleaMarketScreen extends Screen {
 
     // ステータスラベル
     private String statusMessage = "";
-    private int    statusColor   = 0xFFFFFF;
+    private int    statusColor   = 0xFFFFFFFF;
     private int    statusTimer   = 0;
 
     // 出品一覧タブ用ウィジェット
@@ -135,16 +136,16 @@ public class FleaMarketScreen extends Screen {
         return "";
     }
 
-    // ---- 描画 ----
+    // ---- 描画 (NeoForge 26.x: extractRenderState) ----
 
     @Override
-    public void renderBackground(GuiGraphics gfx, int mouseX, int mouseY, float partialTick) {
+    public void extractBackground(GuiGraphicsExtractor gfx, int mouseX, int mouseY, float partialTick) {
         gfx.fill(0, 0, this.width, this.height, 0xC0101018);
     }
 
     @Override
-    public void render(GuiGraphics gfx, int mouseX, int mouseY, float delta) {
-        this.renderBackground(gfx, mouseX, mouseY, delta);
+    public void extractRenderState(GuiGraphicsExtractor gfx, int mouseX, int mouseY, float delta) {
+        this.extractBackground(gfx, mouseX, mouseY, delta);
 
         int w = this.width;
         int h = this.height;
@@ -153,9 +154,9 @@ public class FleaMarketScreen extends Screen {
         int tableW = panelW - 22;
 
         // ── タイトル・残高 ──
-        gfx.drawCenteredString(this.font, "フリーマーケット", w / 2, PANEL_Y, 0xFFFFAA);
-        gfx.drawString(this.font,
-            "残高: ¥" + String.format("%,d", balance), panelX, PANEL_Y, 0x00FF88);
+        gfx.centeredText(this.font, "フリーマーケット", w / 2, PANEL_Y, 0xFFFFFFAA);
+        gfx.text(this.font,
+            "残高: ¥" + String.format("%,d", balance), panelX, PANEL_Y, 0xFF00FF88);
 
         // ── 上位タブ（出品一覧 / 出品する） ──
         renderMainTabs(gfx, panelX, tableW, mouseX, mouseY);
@@ -171,14 +172,14 @@ public class FleaMarketScreen extends Screen {
             statusTimer--;
             int alpha = Math.min(255, statusTimer * 8);
             int col   = (statusColor & 0x00FFFFFF) | (alpha << 24);
-            gfx.drawCenteredString(this.font, statusMessage, w / 2, h - 10, col);
+            gfx.centeredText(this.font, statusMessage, w / 2, h - 10, col);
         }
 
-        super.render(gfx, mouseX, mouseY, delta);
+        super.extractRenderState(gfx, mouseX, mouseY, delta);
     }
 
     /** 上位タブ（出品一覧 / 出品する）描画 */
-    private void renderMainTabs(GuiGraphics gfx, int panelX, int tableW, int mouseX, int mouseY) {
+    private void renderMainTabs(GuiGraphicsExtractor gfx, int panelX, int tableW, int mouseX, int mouseY) {
         int tabW = tableW / 2;
         String[] labels = { "出品一覧", "出品する" };
         MainTab[] tabs  = { MainTab.BROWSE, MainTab.SELL };
@@ -202,12 +203,12 @@ public class FleaMarketScreen extends Screen {
                 gfx.fill(tabX, MAIN_TAB_Y + MAIN_TAB_H - 2,
                          tabX + thisW - 1, MAIN_TAB_Y + MAIN_TAB_H, 0xFF88FF88);
             }
-            gfx.drawCenteredString(this.font, labels[i], tabX + thisW / 2, MAIN_TAB_Y + 3, fg);
+            gfx.centeredText(this.font, labels[i], tabX + thisW / 2, MAIN_TAB_Y + 3, fg);
         }
     }
 
     /** 出品一覧タブ描画 */
-    private void renderBrowseTab(GuiGraphics gfx, int panelX, int tableW, int mouseX, int mouseY) {
+    private void renderBrowseTab(GuiGraphicsExtractor gfx, int panelX, int tableW, int mouseX, int mouseY) {
         String localName = getLocalPlayerName();
 
         // カテゴリタブ
@@ -215,17 +216,17 @@ public class FleaMarketScreen extends Screen {
 
         // ヘッダー
         gfx.fill(panelX, HEADER_Y, panelX + tableW, HEADER_Y + 14, 0xFF555555);
-        gfx.drawString(this.font, "出品者",   panelX + 4,   HEADER_Y + 3, 0xFFFFFF);
-        gfx.drawString(this.font, "アイテム", panelX + 130, HEADER_Y + 3, 0xFFFFFF);
-        gfx.drawString(this.font, "数量",     panelX + 280, HEADER_Y + 3, 0xFFFFFF);
-        gfx.drawString(this.font, "価格",     panelX + 330, HEADER_Y + 3, 0xFFFFFF);
+        gfx.text(this.font, "出品者",   panelX + 4,   HEADER_Y + 3, 0xFFFFFFFF);
+        gfx.text(this.font, "アイテム", panelX + 130, HEADER_Y + 3, 0xFFFFFFFF);
+        gfx.text(this.font, "数量",     panelX + 280, HEADER_Y + 3, 0xFFFFFFFF);
+        gfx.text(this.font, "価格",     panelX + 330, HEADER_Y + 3, 0xFFFFFFFF);
 
         // 件数
         List<SyncListingsPayload.ListingDto> filtered = getFilteredListings();
         String countText = ItemCategory.ALL.equals(selectedCategory)
             ? filtered.size() + " 件"
             : filtered.size() + " / " + listings.size() + " 件";
-        gfx.drawString(this.font, countText, panelX + tableW - 60, HEADER_Y + 3, 0x888888);
+        gfx.text(this.font, countText, panelX + tableW - 60, HEADER_Y + 3, 0xFF888888);
 
         // 一覧
         int end = Math.min(scrollOffset + ROWS_VISIBLE, filtered.size());
@@ -235,15 +236,15 @@ public class FleaMarketScreen extends Screen {
             int rowBg = (i % 2 == 0) ? 0xFF2A2A2A : 0xFF333333;
             gfx.fill(panelX, rowY, panelX + tableW, rowY + ROW_HEIGHT - 2, rowBg);
 
-            gfx.drawString(this.font, truncate(dto.sellerName(), 13), panelX + 4,   rowY + 6, 0xCCCCCC);
+            gfx.text(this.font, truncate(dto.sellerName(), 13), panelX + 4,   rowY + 6, 0xFFCCCCCC);
 
             ItemStack icon = makeIconStack(dto.itemId(), dto.itemCount());
-            gfx.renderItem(icon, panelX + 110, rowY + 2);
+            gfx.item(icon, panelX + 110, rowY + 2);
 
-            gfx.drawString(this.font, truncate(dto.itemName(), 13), panelX + 130, rowY + 6, 0xFFFFFF);
-            gfx.drawString(this.font, "x" + dto.itemCount(),        panelX + 280, rowY + 6, 0xAAAAAA);
-            gfx.drawString(this.font,
-                "¥" + String.format("%,d", dto.price()),            panelX + 330, rowY + 6, 0xFFDD44);
+            gfx.text(this.font, truncate(dto.itemName(), 13), panelX + 130, rowY + 6, 0xFFFFFFFF);
+            gfx.text(this.font, "x" + dto.itemCount(),        panelX + 280, rowY + 6, 0xFFAAAAAA);
+            gfx.text(this.font,
+                "¥" + String.format("%,d", dto.price()),            panelX + 330, rowY + 6, 0xFFFFDD44);
 
             int btnX = panelX + tableW - 45;
             boolean isOwn = dto.sellerName().equals(localName);
@@ -253,28 +254,28 @@ public class FleaMarketScreen extends Screen {
                                && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT - 2;
                 gfx.fill(btnX, rowY + 1, btnX + 42, rowY + ROW_HEIGHT - 3,
                     hovered ? 0xFF550000 : 0xFF330000);
-                gfx.drawCenteredString(this.font, "取消",
-                    btnX + 21, rowY + 6, hovered ? 0xFF8888 : 0xCC4444);
+                gfx.centeredText(this.font, "取消",
+                    btnX + 21, rowY + 6, hovered ? 0xFFFF8888 : 0xFFCC4444);
             } else {
                 boolean hovered = mouseX >= btnX && mouseX < btnX + 42
                                && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT - 2;
                 gfx.fill(btnX, rowY + 1, btnX + 42, rowY + ROW_HEIGHT - 3,
                     hovered ? 0xFF005500 : 0xFF003300);
-                gfx.drawCenteredString(this.font, "購入",
-                    btnX + 21, rowY + 6, hovered ? 0x88FF88 : 0x44CC44);
+                gfx.centeredText(this.font, "購入",
+                    btnX + 21, rowY + 6, hovered ? 0xFF88FF88 : 0xFF44CC44);
             }
         }
     }
 
     /** 出品するタブ描画 */
-    private void renderSellTab(GuiGraphics gfx, int panelX, int panelW, int tableW,
+    private void renderSellTab(GuiGraphicsExtractor gfx, int panelX, int panelW, int tableW,
                                 int mouseX, int mouseY, int h) {
         String localName = getLocalPlayerName();
         int baseY = MAIN_TAB_Y + MAIN_TAB_H + 8;
 
         // ── 手持ちアイテム表示エリア ──
         gfx.fill(panelX, baseY, panelX + panelW, baseY + 50, 0xFF1A1A2E);
-        gfx.drawString(this.font, "出品アイテム（手に持ったもの）", panelX + 4, baseY + 4, 0xAAAAFF);
+        gfx.text(this.font, "出品アイテム（手に持ったもの）", panelX + 4, baseY + 4, 0xFFAAAAFF);
 
         ItemStack held = ItemStack.EMPTY;
         if (this.minecraft != null && this.minecraft.player != null) {
@@ -282,31 +283,31 @@ public class FleaMarketScreen extends Screen {
         }
 
         if (held.isEmpty()) {
-            gfx.drawString(this.font, "アイテムを手に持ってください", panelX + 24, baseY + 20, 0xFF6666);
+            gfx.text(this.font, "アイテムを手に持ってください", panelX + 24, baseY + 20, 0xFFFF6666);
         } else {
-            gfx.renderItem(held, panelX + 4, baseY + 20);
+            gfx.item(held, panelX + 4, baseY + 20);
             String itemName = held.getHoverName().getString();
-            gfx.drawString(this.font, itemName,         panelX + 24, baseY + 22, 0xFFFFFF);
-            gfx.drawString(this.font, "x" + held.getCount(), panelX + 24, baseY + 33, 0xAAAAAA);
+            gfx.text(this.font, itemName,         panelX + 24, baseY + 22, 0xFFFFFFFF);
+            gfx.text(this.font, "x" + held.getCount(), panelX + 24, baseY + 33, 0xFFAAAAAA);
         }
 
         // ── 価格入力エリア ──
         int sellPanelY = baseY + 58;
         gfx.fill(panelX, sellPanelY, panelX + panelW, sellPanelY + 50, 0xFF1A1A2E);
-        gfx.drawString(this.font, "価格設定", panelX + 4, sellPanelY + 4, 0xAAAAFF);
+        gfx.text(this.font, "価格設定", panelX + 4, sellPanelY + 4, 0xFFAAAAFF);
 
         // 手数料プレビュー
         if (priceBox != null) {
             String feeStr = feePreviewText(priceBox.getValue());
             if (!feeStr.isEmpty()) {
-                gfx.drawString(this.font, feeStr, panelX + 260, sellPanelY + 23, 0xFFAA44);
+                gfx.text(this.font, feeStr, panelX + 260, sellPanelY + 23, 0xFFFFAA44);
             }
         }
 
         // ── 自分の出品中リスト ──
         int myListY = sellPanelY + 58;
         gfx.fill(panelX, myListY, panelX + panelW, myListY + 14, 0xFF444444);
-        gfx.drawString(this.font, "出品中のアイテム（最大3件）", panelX + 4, myListY + 3, 0xCCCCCC);
+        gfx.text(this.font, "出品中のアイテム（最大3件）", panelX + 4, myListY + 3, 0xFFCCCCCC);
 
         List<SyncListingsPayload.ListingDto> myListings = new ArrayList<>();
         for (var dto : listings) {
@@ -314,7 +315,7 @@ public class FleaMarketScreen extends Screen {
         }
 
         if (myListings.isEmpty()) {
-            gfx.drawString(this.font, "出品中なし", panelX + 4, myListY + 18, 0x666666);
+            gfx.text(this.font, "出品中なし", panelX + 4, myListY + 18, 0xFF666666);
         } else {
             for (int i = 0; i < myListings.size() && i < 3; i++) {
                 var dto = myListings.get(i);
@@ -323,11 +324,11 @@ public class FleaMarketScreen extends Screen {
                 gfx.fill(panelX, rowY, panelX + tableW, rowY + ROW_HEIGHT - 2, rowBg);
 
                 ItemStack icon = makeIconStack(dto.itemId(), dto.itemCount());
-                gfx.renderItem(icon, panelX + 4, rowY + 2);
-                gfx.drawString(this.font, truncate(dto.itemName(), 15), panelX + 24, rowY + 6, 0xFFFFFF);
-                gfx.drawString(this.font, "x" + dto.itemCount(), panelX + 200, rowY + 6, 0xAAAAAA);
-                gfx.drawString(this.font,
-                    "¥" + String.format("%,d", dto.price()), panelX + 240, rowY + 6, 0xFFDD44);
+                gfx.item(icon, panelX + 4, rowY + 2);
+                gfx.text(this.font, truncate(dto.itemName(), 15), panelX + 24, rowY + 6, 0xFFFFFFFF);
+                gfx.text(this.font, "x" + dto.itemCount(), panelX + 200, rowY + 6, 0xFFAAAAAA);
+                gfx.text(this.font,
+                    "¥" + String.format("%,d", dto.price()), panelX + 240, rowY + 6, 0xFFFFDD44);
 
                 // 取消ボタン
                 int btnX = panelX + tableW - 45;
@@ -335,14 +336,14 @@ public class FleaMarketScreen extends Screen {
                                && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT - 2;
                 gfx.fill(btnX, rowY + 1, btnX + 42, rowY + ROW_HEIGHT - 3,
                     hovered ? 0xFF550000 : 0xFF330000);
-                gfx.drawCenteredString(this.font, "取消",
-                    btnX + 21, rowY + 6, hovered ? 0xFF8888 : 0xCC4444);
+                gfx.centeredText(this.font, "取消",
+                    btnX + 21, rowY + 6, hovered ? 0xFFFF8888 : 0xFFCC4444);
             }
         }
     }
 
     /** カテゴリタブ描画（出品一覧タブ内のみ） */
-    private void renderCategoryTabs(GuiGraphics gfx, int panelX, int tableW, int mouseX, int mouseY) {
+    private void renderCategoryTabs(GuiGraphicsExtractor gfx, int panelX, int tableW, int mouseX, int mouseY) {
         String[] cats = ItemCategory.VALUES;
         int totalW = tableW;
         int tabW = totalW / cats.length;
@@ -366,14 +367,18 @@ public class FleaMarketScreen extends Screen {
             if (active) {
                 gfx.fill(tabX, TAB_Y + TAB_H - 2, tabX + thisW - 1, TAB_Y + TAB_H, 0xFFFFDD44);
             }
-            gfx.drawCenteredString(this.font, cats[i], tabX + thisW / 2, TAB_Y + 2, fg);
+            gfx.centeredText(this.font, cats[i], tabX + thisW / 2, TAB_Y + 2, fg);
         }
     }
 
-    // ---- 入力処理 ----
+    // ---- 入力処理 (NeoForge 26.x: MouseButtonEvent) ----
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    public boolean mouseClicked(MouseButtonEvent event, boolean inside) {
+        double mouseX = event.x();
+        double mouseY = event.y();
+        int button = event.button();
+
         if (button == 0) {
             int w = this.width;
             int panelW = Math.min(520, w - 40);
@@ -456,7 +461,7 @@ public class FleaMarketScreen extends Screen {
                 }
             }
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(event, inside);
     }
 
     @Override
@@ -473,11 +478,11 @@ public class FleaMarketScreen extends Screen {
     // ---- ネットワーク ----
 
     private void doBuy(UUID listingId) {
-        PacketDistributor.sendToServer(new BuyPayload(listingId));
+        ClientPacketDistributor.sendToServer(new BuyPayload(listingId));
     }
 
     private void doCancel(UUID listingId) {
-        PacketDistributor.sendToServer(new CancelListingPayload(listingId));
+        ClientPacketDistributor.sendToServer(new CancelListingPayload(listingId));
     }
 
     private void doSell() {
@@ -487,7 +492,7 @@ public class FleaMarketScreen extends Screen {
         try {
             long price = Long.parseLong(txt);
             if (price <= 0) return;
-            PacketDistributor.sendToServer(new SellPayload(price));
+            ClientPacketDistributor.sendToServer(new SellPayload(price));
             priceBox.setValue("");
         } catch (NumberFormatException ignored) {}
     }
@@ -505,7 +510,7 @@ public class FleaMarketScreen extends Screen {
 
     private ItemStack makeIconStack(String itemId, int count) {
         try {
-            var item = BuiltInRegistries.ITEM.get(ResourceLocation.parse(itemId));
+            var item = BuiltInRegistries.ITEM.getValue(Identifier.parse(itemId));
             return new ItemStack(item, count);
         } catch (Exception e) {
             return ItemStack.EMPTY;

@@ -24,8 +24,8 @@ public class AuctionCommand {
                     PacketDistributor.sendToPlayer(sp, new OpenAuctionPayload());
 
                     // 一覧+残高を即sync（画面表示直後にデータが届く）
-                    AuctionSavedData auctionData = AuctionSavedData.get(sp.serverLevel());
-                    MarketSavedData  marketData  = MarketSavedData.get(sp.serverLevel());
+                    AuctionSavedData auctionData = AuctionSavedData.get(sp.level());
+                    MarketSavedData  marketData  = MarketSavedData.get(sp.level());
                     ModNetwork.syncAuctionToPlayer(sp, auctionData, marketData);
 
                     return 1;

@@ -17,8 +17,8 @@ public class ModItems {
      * 基本的に残高はプレイヤーデータに整数で保持。
      */
     public static final DeferredItem<Item> YEN_COIN =
-        ITEMS.register("yen_coin", () -> new Item(
-            new Item.Properties().stacksTo(64)
+        ITEMS.registerItem("yen_coin", props -> new Item(
+            props.stacksTo(64)
         ));
 
     public static void register(IEventBus bus) {

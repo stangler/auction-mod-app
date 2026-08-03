@@ -18,27 +18,33 @@ import java.util.UUID;
 @EventBusSubscriber(modid = AuctionMod.MOD_ID)
 public class MobListingGenerator {
 
-    private static final List<MobListing> STARTER_LISTINGS = List.of(
-        new MobListing("スティーブ", new ItemStack(Items.DIAMOND, 3),    8000),
-        new MobListing("アレックス", new ItemStack(Items.BOW),           1200),
-        new MobListing("スティーブ", new ItemStack(Items.OAK_LOG, 64),    500),
-        new MobListing("アレックス", new ItemStack(Items.COOKED_BEEF, 16), 800)
-    );
+    private static List<MobListing> getStarterListings() {
+        return List.of(
+            new MobListing("スティーブ", new ItemStack(Items.DIAMOND, 3),    8000),
+            new MobListing("アレックス", new ItemStack(Items.BOW),           1200),
+            new MobListing("スティーブ", new ItemStack(Items.OAK_LOG, 64),    500),
+            new MobListing("アレックス", new ItemStack(Items.COOKED_BEEF, 16), 800)
+        );
+    }
 
-    private static final List<MobListing> VILLAGER_LISTINGS = List.of(
-        new MobListing("村人A", new ItemStack(Items.BREAD, 10),        200),
-        new MobListing("村人B", new ItemStack(Items.IRON_SWORD),      1500),
-        new MobListing("村人C", new ItemStack(Items.GOLDEN_APPLE),    3000),
-        new MobListing("村人D", new ItemStack(Items.ENCHANTING_TABLE), 5000)
-    );
+    private static List<MobListing> getVillagerListings() {
+        return List.of(
+            new MobListing("村人A", new ItemStack(Items.BREAD, 10),        200),
+            new MobListing("村人B", new ItemStack(Items.IRON_SWORD),      1500),
+            new MobListing("村人C", new ItemStack(Items.GOLDEN_APPLE),    3000),
+            new MobListing("村人D", new ItemStack(Items.ENCHANTING_TABLE), 5000)
+        );
+    }
 
     private static final long AUCTION_DURATION_MS = 3 * 60 * 1000L;
-    private static final List<MobListing> AUCTION_LISTINGS = List.of(
-        new MobListing("スティーブ", new ItemStack(Items.NETHERITE_INGOT),  5000),
-        new MobListing("アレックス", new ItemStack(Items.ELYTRA),          20000),
-        new MobListing("村人A",     new ItemStack(Items.DIAMOND_SWORD),    3000),
-        new MobListing("村人B",     new ItemStack(Items.SHULKER_BOX),      2000)
-    );
+    private static List<MobListing> getAuctionListings() {
+        return List.of(
+            new MobListing("スティーブ", new ItemStack(Items.NETHERITE_INGOT),  5000),
+            new MobListing("アレックス", new ItemStack(Items.ELYTRA),          20000),
+            new MobListing("村人A",     new ItemStack(Items.DIAMOND_SWORD),    3000),
+            new MobListing("村人B",     new ItemStack(Items.SHULKER_BOX),      2000)
+        );
+    }
 
     @SubscribeEvent
     public static void onWorldLoad(LevelEvent.Load event) {
@@ -48,18 +54,21 @@ public class MobListingGenerator {
         MarketSavedData data = MarketSavedData.get(level);
 
         if (data.getActiveListings().isEmpty()) {
-            addListings(data, STARTER_LISTINGS);
-            addListings(data, VILLAGER_LISTINGS);
+            List<MobListing> starter = getStarterListings();
+            List<MobListing> villager = getVillagerListings();
+            addListings(data, starter);
+            addListings(data, villager);
             AuctionMod.LOGGER.info("AuctionMod: モブ初期出品 {}件登録",
-                STARTER_LISTINGS.size() + VILLAGER_LISTINGS.size());
+                starter.size() + villager.size());
         }
 
         AuctionSavedData auctionData = AuctionSavedData.get(level);
         boolean hasActiveAuction = auctionData.getAll().stream().anyMatch(l -> !l.isExpired());
         if (!hasActiveAuction) {
-            addAuctionListings(auctionData, AUCTION_LISTINGS);
+            List<MobListing> auction = getAuctionListings();
+            addAuctionListings(auctionData, auction);
             AuctionMod.LOGGER.info("AuctionMod: オークション初期出品 {}件登録",
-                AUCTION_LISTINGS.size());
+                auction.size());
         }
     }
 
@@ -68,15 +77,16 @@ public class MobListingGenerator {
      * AuctionTickHandler の落札/流札処理後に呼ばれる。
      */
     public static void replenishAuctionIfNeeded(AuctionSavedData auctionData) {
+        List<MobListing> auctionListings = getAuctionListings();
         long activeMobCount = auctionData.getAll().stream()
             .filter(l -> !l.isExpired())
             .filter(l -> UUID.nameUUIDFromBytes(l.sellerName.getBytes()).equals(l.sellerUUID))
             .count();
 
-        int needed = AUCTION_LISTINGS.size() - (int) activeMobCount;
+        int needed = auctionListings.size() - (int) activeMobCount;
         if (needed <= 0) return;
 
-        List<MobListing> toAdd = AUCTION_LISTINGS.subList(0, Math.min(needed, AUCTION_LISTINGS.size()));
+        List<MobListing> toAdd = auctionListings.subList(0, Math.min(needed, auctionListings.size()));
         addAuctionListings(auctionData, toAdd);
         AuctionMod.LOGGER.info("AuctionMod: オークション自動再出品 {}件補充 (アクティブ残: {})",
             toAdd.size(), activeMobCount);
@@ -88,8 +98,8 @@ public class MobListingGenerator {
      */
     public static void replenishMarketIfNeeded(MarketSavedData marketData) {
         List<MobListing> allMobListings = new ArrayList<>();
-        allMobListings.addAll(STARTER_LISTINGS);
-        allMobListings.addAll(VILLAGER_LISTINGS);
+        allMobListings.addAll(getStarterListings());
+        allMobListings.addAll(getVillagerListings());
         int targetCount = allMobListings.size();
 
         long activeMobCount = marketData.getActiveListings().stream()

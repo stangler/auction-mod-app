@@ -6,7 +6,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,8 +17,8 @@ public record SyncListingsPayload(
     long balance
 ) implements CustomPacketPayload {
 
-    public static final ResourceLocation ID_LOC =
-        ResourceLocation.fromNamespaceAndPath(AuctionMod.MOD_ID, "sync_listings");
+    public static final Identifier ID_LOC =
+        Identifier.fromNamespaceAndPath(AuctionMod.MOD_ID, "sync_listings");
 
     public static final CustomPacketPayload.Type<SyncListingsPayload> TYPE =
         new CustomPacketPayload.Type<>(ID_LOC);

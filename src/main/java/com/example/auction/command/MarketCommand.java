@@ -23,7 +23,7 @@ public class MarketCommand {
                     // GUI表示命令
                     PacketDistributor.sendToPlayer(sp, new OpenMarketPayload());
                     // 出品一覧＋残高を即座に同期（画面表示直後にデータが届く）
-                    MarketSavedData data = MarketSavedData.get(sp.serverLevel());
+                    MarketSavedData data = MarketSavedData.get(sp.level());
                     ModNetwork.syncListingsToPlayer(sp, data);
                     return 1;
                 })
@@ -33,7 +33,7 @@ public class MarketCommand {
             .then(Commands.literal("balance")
                 .executes(ctx -> {
                     if (!(ctx.getSource().getEntity() instanceof ServerPlayer sp)) return 0;
-                    MarketSavedData data = MarketSavedData.get(sp.serverLevel());
+                    MarketSavedData data = MarketSavedData.get(sp.level());
                     long bal = data.getBalance(sp.getUUID());
                     sp.sendSystemMessage(Component.literal(
                         "残高: ¥" + String.format("%,d", bal)));
@@ -47,7 +47,7 @@ public class MarketCommand {
                     .executes(ctx -> {
                         if (!(ctx.getSource().getEntity() instanceof ServerPlayer sp)) return 0;
                         long amount = LongArgumentType.getLong(ctx, "amount");
-                        MarketSavedData data = MarketSavedData.get(sp.serverLevel());
+                        MarketSavedData data = MarketSavedData.get(sp.level());
                         data.addBalance(sp.getUUID(), amount);
                         sp.sendSystemMessage(Component.literal(
                             "¥" + String.format("%,d", amount) + " 付与。残高: ¥" +

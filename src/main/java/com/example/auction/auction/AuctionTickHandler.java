@@ -95,22 +95,15 @@ public class AuctionTickHandler {
                         "[AuctionMod] 落札アイテムを受け取りました: " +
                         listing.stack.getHoverName().getString()));
                 } else {
-                    // オフライン → pendingItems キュー
-                    level.getServer().getProfileCache()
-                            .get(listing.topBidderName)
-                            .ifPresentOrElse(
-                                profile -> {
-                                    marketData.addBalance(profile.getId(), -listing.currentBid);
-                                    marketData.addPendingItem(profile.getId(), listing.stack);
-                                    AuctionMod.LOGGER.info(
-                                        "[AuctionMod] 落札アイテムをキューに追加: {} → {}",
-                                        listing.stack.getHoverName().getString(),
-                                        listing.topBidderName);
-                                },
-                                () -> AuctionMod.LOGGER.warn(
-                                    "[AuctionMod] ProfileCache未解決のため未渡しキュー登録不可: {}",
-                                    listing.topBidderName)
-                            );
+                    // オフライン → オフラインUUIDでキュー登録（ネームベースUUID）
+                    UUID offlineId = UUID.nameUUIDFromBytes(
+                        ("OfflinePlayer:" + listing.topBidderName).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    marketData.addBalance(offlineId, -listing.currentBid);
+                    marketData.addPendingItem(offlineId, listing.stack);
+                    AuctionMod.LOGGER.info(
+                        "[AuctionMod] 落札アイテムをキューに追加: {} → {}",
+                        listing.stack.getHoverName().getString(),
+                        listing.topBidderName);
                 }
             }
 
@@ -151,21 +144,14 @@ public class AuctionTickHandler {
                         "[AuctionMod] 流札のため返却: " +
                         listing.stack.getHoverName().getString()));
                 } else {
-                    // オフライン → pendingItems キュー
-                    level.getServer().getProfileCache()
-                            .get(listing.sellerName)
-                            .ifPresentOrElse(
-                                profile -> {
-                                    marketData.addPendingItem(profile.getId(), listing.stack);
-                                    AuctionMod.LOGGER.info(
-                                        "[AuctionMod] 流札アイテムをキューに追加（返却）: {} → {}",
-                                        listing.stack.getHoverName().getString(),
-                                        listing.sellerName);
-                                },
-                                () -> AuctionMod.LOGGER.warn(
-                                    "[AuctionMod] ProfileCache未解決のため流札返却不可: {}",
-                                    listing.sellerName)
-                            );
+                    // オフライン → オフラインUUIDでキュー登録（ネームベースUUID）
+                    UUID offlineId = UUID.nameUUIDFromBytes(
+                        ("OfflinePlayer:" + listing.sellerName).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    marketData.addPendingItem(offlineId, listing.stack);
+                    AuctionMod.LOGGER.info(
+                        "[AuctionMod] 流札アイテムをキューに追加（返却）: {} → {}",
+                        listing.stack.getHoverName().getString(),
+                        listing.sellerName);
                 }
             }
         }

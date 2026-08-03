@@ -4,15 +4,16 @@ import com.example.auction.network.payload.BidPayload;
 import com.example.auction.network.payload.CancelAuctionPayload;
 import com.example.auction.network.payload.SellAuctionPayload;
 import com.example.auction.network.payload.SyncAuctionPayload;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -49,7 +50,7 @@ public class AuctionScreen extends Screen {
 
     // ── 共通 ─────────────────────────────────────────────
     private String statusMessage = "";
-    private int statusColor = 0xFFFFFF;
+    private int statusColor = 0xFFFFFFFF;
     private int statusTimer = 0;
 
     public AuctionScreen() {
@@ -193,16 +194,16 @@ public class AuctionScreen extends Screen {
     }
 
     // =====================================================
-    // render
+    // render (NeoForge 26.x: extractRenderState)
     // =====================================================
     @Override
-    public void renderBackground(GuiGraphics gfx, int mouseX, int mouseY, float partialTick) {
+    public void extractBackground(GuiGraphicsExtractor gfx, int mouseX, int mouseY, float partialTick) {
         gfx.fill(0, 0, this.width, this.height, 0xC0101018);
     }
 
     @Override
-    public void render(GuiGraphics gfx, int mouseX, int mouseY, float delta) {
-        this.renderBackground(gfx, mouseX, mouseY, delta);
+    public void extractRenderState(GuiGraphicsExtractor gfx, int mouseX, int mouseY, float delta) {
+        this.extractBackground(gfx, mouseX, mouseY, delta);
 
         int w      = this.width;
         int h      = this.height;
@@ -211,9 +212,9 @@ public class AuctionScreen extends Screen {
         int panelY = 20;
 
         // タイトル・残高
-        gfx.drawCenteredString(this.font, "🔨 オークション", w / 2, panelY, 0xFFDD44);
-        gfx.drawString(this.font,
-            "残高: ¥" + String.format("%,d", balance), panelX, panelY, 0x00FF88);
+        gfx.centeredText(this.font, "🔨 オークション", w / 2, panelY, 0xFFFFDD44);
+        gfx.text(this.font,
+            "残高: ¥" + String.format("%,d", balance), panelX, panelY, 0xFF00FF88);
 
         // ── タブ描画 ──────────────────────────────────────
         renderTabs(gfx, panelX, panelW, panelY + 12);
@@ -229,17 +230,17 @@ public class AuctionScreen extends Screen {
             statusTimer--;
             int alpha = Math.min(255, statusTimer * 8);
             int col   = (statusColor & 0x00FFFFFF) | (alpha << 24);
-            gfx.drawCenteredString(this.font, statusMessage, w / 2, h - 18, col);
+            gfx.centeredText(this.font, statusMessage, w / 2, h - 18, col);
         }
 
-        super.render(gfx, mouseX, mouseY, delta);
+        super.extractRenderState(gfx, mouseX, mouseY, delta);
 
         if (currentTab == TAB_LIST) {
             renderBidHistoryTooltip(gfx, mouseX, mouseY);
         }
     }
 
-    private void renderTabs(GuiGraphics gfx, int panelX, int panelW, int y) {
+    private void renderTabs(GuiGraphicsExtractor gfx, int panelX, int panelW, int y) {
         int tabW = 80;
         int tabH = 14;
 
@@ -247,18 +248,18 @@ public class AuctionScreen extends Screen {
         boolean listSel = (currentTab == TAB_LIST);
         gfx.fill(panelX, y, panelX + tabW, y + tabH,
             listSel ? 0xFF334466 : 0xFF222233);
-        gfx.drawCenteredString(this.font, "一覧/入札",
-            panelX + tabW / 2, y + 3, listSel ? 0xFFFFFF : 0x888888);
+        gfx.centeredText(this.font, "一覧/入札",
+            panelX + tabW / 2, y + 3, listSel ? 0xFFFFFFFF : 0xFF888888);
 
         // 出品タブ
         boolean sellSel = (currentTab == TAB_SELL);
         gfx.fill(panelX + tabW + 2, y, panelX + tabW * 2 + 2, y + tabH,
             sellSel ? 0xFF334466 : 0xFF222233);
-        gfx.drawCenteredString(this.font, "出品",
-            panelX + tabW + 2 + tabW / 2, y + 3, sellSel ? 0xFFFFFF : 0x888888);
+        gfx.centeredText(this.font, "出品",
+            panelX + tabW + 2 + tabW / 2, y + 3, sellSel ? 0xFFFFFFFF : 0xFF888888);
     }
 
-    private void renderListTab(GuiGraphics gfx, int mouseX, int mouseY,
+    private void renderListTab(GuiGraphicsExtractor gfx, int mouseX, int mouseY,
                                 int panelX, int panelW, int panelY, int h) {
         int listY  = getListY();
         int tableW = panelW - 22;
@@ -267,11 +268,11 @@ public class AuctionScreen extends Screen {
         // ヘッダー行
         int headerY = panelY + 28;
         gfx.fill(panelX, headerY, panelX + tableW, headerY + 15, 0xFF444466);
-        gfx.drawString(this.font, "出品者",     col(panelX, 0), headerY + 4, 0xCCCCFF);
-        gfx.drawString(this.font, "アイテム",   col(panelX, 1), headerY + 4, 0xCCCCFF);
-        gfx.drawString(this.font, "現在入札額", col(panelX, 2), headerY + 4, 0xCCCCFF);
-        gfx.drawString(this.font, "残り時間",   col(panelX, 3), headerY + 4, 0xCCCCFF);
-        gfx.drawString(this.font, "期間",       col(panelX, 4), headerY + 4, 0xCCCCFF);
+        gfx.text(this.font, "出品者",     col(panelX, 0), headerY + 4, 0xFFCCCCFF);
+        gfx.text(this.font, "アイテム",   col(panelX, 1), headerY + 4, 0xFFCCCCFF);
+        gfx.text(this.font, "現在入札額", col(panelX, 2), headerY + 4, 0xFFCCCCFF);
+        gfx.text(this.font, "残り時間",   col(panelX, 3), headerY + 4, 0xFFCCCCFF);
+        gfx.text(this.font, "期間",       col(panelX, 4), headerY + 4, 0xFFCCCCFF);
 
         // 出品一覧
         int end = Math.min(scrollOffset + ROWS_VISIBLE, listings.size());
@@ -289,30 +290,30 @@ public class AuctionScreen extends Screen {
                 gfx.fill(panelX, rowY + ROW_HEIGHT - 2, panelX + tableW, rowY + ROW_HEIGHT - 1, 0xFF5577AA);
             }
 
-            gfx.drawString(this.font, truncate(dto.sellerName(), 10), col(panelX, 0), rowY + 6, 0xCCCCCC);
+            gfx.text(this.font, truncate(dto.sellerName(), 10), col(panelX, 0), rowY + 6, 0xFFCCCCCC);
 
             ItemStack icon = makeIconStack(dto.itemId(), dto.itemCount());
-            gfx.renderItem(icon, col(panelX, 1), rowY + 2);
-            gfx.drawString(this.font, truncate(dto.itemName(), 11), col(panelX, 1) + 20, rowY + 6, 0xFFFFFF);
+            gfx.item(icon, col(panelX, 1), rowY + 2);
+            gfx.text(this.font, truncate(dto.itemName(), 11), col(panelX, 1) + 20, rowY + 6, 0xFFFFFFFF);
 
             if (dto.currentBid() > 0) {
-                gfx.drawString(this.font,
+                gfx.text(this.font,
                     "¥" + String.format("%,d", dto.currentBid()),
-                    col(panelX, 2), rowY + 6, 0xFFDD44);
+                    col(panelX, 2), rowY + 6, 0xFFFFDD44);
             } else {
-                gfx.drawString(this.font,
+                gfx.text(this.font,
                     "¥" + String.format("%,d", dto.startPrice()) + " ~",
-                    col(panelX, 2), rowY + 6, 0x888855);
+                    col(panelX, 2), rowY + 6, 0xFF888855);
             }
 
             long secs     = dto.remainingSecs();
             String timeStr = formatTime(secs);
-            int timeColor  = secs <= 60 ? 0xFF4444 : secs <= 300 ? 0xFF8833 : 0x88CCFF;
-            gfx.drawString(this.font, timeStr, col(panelX, 3), rowY + 6, timeColor);
+            int timeColor  = secs <= 60 ? 0xFFFF4444 : secs <= 300 ? 0xFFFF8833 : 0xFF88CCFF;
+            gfx.text(this.font, timeStr, col(panelX, 3), rowY + 6, timeColor);
 
             // 出品期間
-            gfx.drawString(this.font,
-                formatDuration(dto.durationMs()), col(panelX, 4), rowY + 6, 0xAA88CC);
+            gfx.text(this.font,
+                formatDuration(dto.durationMs()), col(panelX, 4), rowY + 6, 0xFFAA88CC);
 
             // 自分の出品 → 取消ボタン（入札ありの場合はグレーアウト）
             // 他人の出品 → 入札ボタン
@@ -325,26 +326,26 @@ public class AuctionScreen extends Screen {
                 if (hasBid) {
                     // 入札済み → グレー（取消不可を視覚的に表現）
                     gfx.fill(btnX, rowY + 2, btnX + 42, rowY + ROW_HEIGHT - 3, 0xFF333333);
-                    gfx.drawCenteredString(this.font, "取消不可", btnX + 21, rowY + 6, 0x666666);
+                    gfx.centeredText(this.font, "取消不可", btnX + 21, rowY + 6, 0xFF666666);
                 } else {
                     // 取消可能 → 赤系
                     gfx.fill(btnX, rowY + 2, btnX + 42, rowY + ROW_HEIGHT - 3,
                         hov ? 0xFF550000 : 0xFF330000);
-                    gfx.drawCenteredString(this.font, "取消",
-                        btnX + 21, rowY + 6, hov ? 0xFF8888 : 0xCC4444);
+                    gfx.centeredText(this.font, "取消",
+                        btnX + 21, rowY + 6, hov ? 0xFFFF8888 : 0xFFCC4444);
                 }
             } else {
                 // 入札ボタン（青系）
                 gfx.fill(btnX, rowY + 2, btnX + 42, rowY + ROW_HEIGHT - 3,
                     hov ? 0xFF004488 : 0xFF002244);
-                gfx.drawCenteredString(this.font, "入札",
-                    btnX + 21, rowY + 6, hov ? 0x88DDFF : 0x4499CC);
+                gfx.centeredText(this.font, "入札",
+                    btnX + 21, rowY + 6, hov ? 0xFF88DDFF : 0xFF4499CC);
             }
         }
 
         if (listings.isEmpty()) {
-            gfx.drawCenteredString(this.font,
-                "出品中のアイテムはありません", this.width / 2, listY + 30, 0x888888);
+            gfx.centeredText(this.font,
+                "出品中のアイテムはありません", this.width / 2, listY + 30, 0xFF888888);
         }
 
         // 入札エリア
@@ -354,25 +355,25 @@ public class AuctionScreen extends Screen {
 
         if (selectedRow >= 0 && selectedRow < listings.size()) {
             var sel = listings.get(selectedRow);
-            gfx.drawString(this.font,
+            gfx.text(this.font,
                 "選択: " + truncate(sel.itemName(), 20)
                 + "  最低入札額: ¥" + String.format("%,d", sel.minimumBid()),
-                panelX + 4, areaY + 5, 0xAAAAFF);
+                panelX + 4, areaY + 5, 0xFFAAAAFF);
             if (!sel.topBidderName().isEmpty()) {
-                gfx.drawString(this.font,
+                gfx.text(this.font,
                     "現在の最高額入札者: " + sel.topBidderName(),
-                    panelX + 4, areaY + 16, 0xFF8844);
+                    panelX + 4, areaY + 16, 0xFFFF8844);
             }
         } else {
-            gfx.drawString(this.font,
+            gfx.text(this.font,
                 "← 入札する出品を選択してください",
-                panelX + 4, areaY + 10, 0x666688);
+                panelX + 4, areaY + 10, 0xFF666688);
         }
 
-        gfx.drawString(this.font, "入札額 ¥:", panelX + 4, h - 46, 0xCCCCCC);
+        gfx.text(this.font, "入札額 ¥:", panelX + 4, h - 46, 0xFFCCCCCC);
     }
 
-    private void renderSellTab(GuiGraphics gfx, int panelX, int panelW) {
+    private void renderSellTab(GuiGraphicsExtractor gfx, int panelX, int panelW) {
         int centerX = panelX + panelW / 2;
         int baseY   = 56;
 
@@ -385,28 +386,28 @@ public class AuctionScreen extends Screen {
         int previewX = centerX - 8;
         int previewY = baseY + 10;
         if (!held.isEmpty()) {
-            gfx.renderItem(held, previewX, previewY);
-            gfx.drawCenteredString(this.font,
+            gfx.item(held, previewX, previewY);
+            gfx.centeredText(this.font,
                 held.getHoverName().getString(),
-                centerX, previewY + 18, 0xFFFFFF);
+                centerX, previewY + 18, 0xFFFFFFFF);
         } else {
-            gfx.drawCenteredString(this.font,
+            gfx.centeredText(this.font,
                 "手にアイテムを持ってください",
-                centerX, previewY + 4, 0xFF6666);
+                centerX, previewY + 4, 0xFFFF6666);
         }
 
         // ラベル類（開始価格は入力時に手数料プレビューを inline 表示）
         String feeStr = feePreviewText(sellPriceBox.getValue());
         String priceLabel = feeStr.isEmpty() ? "開始価格 :" : "開始価格 :  →  " + feeStr;
-        int priceColor    = feeStr.isEmpty() ? 0xCCCCCC : 0xFFAA44;
-        gfx.drawCenteredString(this.font, priceLabel, centerX, baseY + 46, priceColor);
-        gfx.drawCenteredString(this.font, "出品期間 :", centerX, baseY + 74, 0xCCCCCC);
+        int priceColor    = feeStr.isEmpty() ? 0xFFCCCCCC : 0xFFFFAA44;
+        gfx.centeredText(this.font, priceLabel, centerX, baseY + 46, priceColor);
+        gfx.centeredText(this.font, "出品期間 :", centerX, baseY + 74, 0xFFCCCCCC);
     }
 
     // =====================================================
     // 入札履歴ツールチップ
     // =====================================================
-    private void renderBidHistoryTooltip(GuiGraphics gfx, int mouseX, int mouseY) {
+    private void renderBidHistoryTooltip(GuiGraphicsExtractor gfx, int mouseX, int mouseY) {
         int w      = this.width;
         int panelW = Math.min(520, w - 40);
         int panelX = (w - panelW) / 2;
@@ -442,11 +443,11 @@ public class AuctionScreen extends Screen {
         gfx.fill(tipX - 1, tipY - 1, tipX + tipW + 1, tipY + tipH + 1, 0xFF445566);
         gfx.fill(tipX,     tipY,     tipX + tipW,     tipY + tipH,     0xF0090E18);
 
-        gfx.drawString(this.font, "入札履歴", tipX + padding, tipY + padding, 0xAAAAFF);
+        gfx.text(this.font, "入札履歴", tipX + padding, tipY + padding, 0xFFAAAAFF);
 
         int yBase = tipY + padding + lineH + 2;
         if (history.isEmpty()) {
-            gfx.drawString(this.font, "入札なし", tipX + padding, yBase, 0x555577);
+            gfx.text(this.font, "入札なし", tipX + padding, yBase, 0xFF555577);
         } else {
             int startIdx = Math.max(0, history.size() - 5);
             int dispIdx  = 0;
@@ -456,8 +457,8 @@ public class AuctionScreen extends Screen {
                 String line = entry.bidderName()
                     + "  ¥" + String.format("%,d", entry.amount())
                     + "  " + formatAgo(agoSecs);
-                int color = (dispIdx == 0) ? 0xFFDD44 : 0x999999;
-                gfx.drawString(this.font, truncate(line, 22),
+                int color = (dispIdx == 0) ? 0xFFFFDD44 : 0xFF999999;
+                gfx.text(this.font, truncate(line, 22),
                     tipX + padding, yBase + dispIdx * lineH, color);
             }
         }
@@ -468,29 +469,29 @@ public class AuctionScreen extends Screen {
     // =====================================================
     private void doPlaceBid() {
         if (selectedRow < 0 || selectedRow >= listings.size()) {
-            showStatus("入札する出品を選択してください", 0xFF8888);
+            showStatus("入札する出品を選択してください", 0xFFFF8888);
             return;
         }
         String txt = bidBox.getValue().trim();
-        if (txt.isEmpty()) { showStatus("入札額を入力してください", 0xFF8888); return; }
+        if (txt.isEmpty()) { showStatus("入札額を入力してください", 0xFFFF8888); return; }
         long amount;
         try {
             amount = Long.parseLong(txt);
         } catch (NumberFormatException e) {
-            showStatus("正しい金額を入力してください", 0xFF8888);
+            showStatus("正しい金額を入力してください", 0xFFFF8888);
             return;
         }
         var dto = listings.get(selectedRow);
         if (amount < dto.minimumBid()) {
-            showStatus("最低入札額は ¥" + String.format("%,d", dto.minimumBid()) + " です", 0xFF8844);
+            showStatus("最低入札額は ¥" + String.format("%,d", dto.minimumBid()) + " です", 0xFFFF8844);
             return;
         }
         if (amount > balance) {
-            showStatus("残高不足です (残高: ¥" + String.format("%,d", balance) + ")", 0xFF4444);
+            showStatus("残高不足です (残高: ¥" + String.format("%,d", balance) + ")", 0xFFFF4444);
             return;
         }
-        PacketDistributor.sendToServer(new BidPayload(dto.listingId(), amount));
-        showStatus("入札しました: ¥" + String.format("%,d", amount), 0x44FF88);
+        ClientPacketDistributor.sendToServer(new BidPayload(dto.listingId(), amount));
+        showStatus("入札しました: ¥" + String.format("%,d", amount), 0xFF44FF88);
         bidBox.setValue("");
     }
 
@@ -499,30 +500,30 @@ public class AuctionScreen extends Screen {
 
         var held = this.minecraft.player.getMainHandItem();
         if (held.isEmpty()) {
-            showStatus("手にアイテムを持ってください", 0xFF8888);
+            showStatus("手にアイテムを持ってください", 0xFFFF8888);
             return;
         }
 
         String txt = sellPriceBox.getValue().trim();
-        if (txt.isEmpty()) { showStatus("開始価格を入力してください", 0xFF8888); return; }
+        if (txt.isEmpty()) { showStatus("開始価格を入力してください", 0xFFFF8888); return; }
 
         long price;
         try {
             price = Long.parseLong(txt);
         } catch (NumberFormatException e) {
-            showStatus("正しい金額を入力してください", 0xFF8888);
+            showStatus("正しい金額を入力してください", 0xFFFF8888);
             return;
         }
-        if (price <= 0) { showStatus("1円以上を入力してください", 0xFF8888); return; }
+        if (price <= 0) { showStatus("1円以上を入力してください", 0xFFFF8888); return; }
 
-        PacketDistributor.sendToServer(new SellAuctionPayload(price, selectedDuration));
-        showStatus("出品リクエストを送信しました", 0x44FF88);
+        ClientPacketDistributor.sendToServer(new SellAuctionPayload(price, selectedDuration));
+        showStatus("出品リクエストを送信しました", 0xFF44FF88);
         sellPriceBox.setValue("");
     }
 
     private void doCancelAuction(UUID listingId) {
-        PacketDistributor.sendToServer(new CancelAuctionPayload(listingId));
-        showStatus("取消リクエストを送信しました", 0xFFAA44);
+        ClientPacketDistributor.sendToServer(new CancelAuctionPayload(listingId));
+        showStatus("取消リクエストを送信しました", 0xFFFFAA44);
     }
 
     // =====================================================
@@ -536,10 +537,14 @@ public class AuctionScreen extends Screen {
     }
 
     // =====================================================
-    // 入力イベント
+    // 入力イベント (NeoForge 26.x: MouseButtonEvent)
     // =====================================================
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    public boolean mouseClicked(MouseButtonEvent event, boolean inside) {
+        double mouseX = event.x();
+        double mouseY = event.y();
+        int button = event.button();
+
         if (button == 0) {
             int w      = this.width;
             int panelW = Math.min(520, w - 40);
@@ -601,7 +606,7 @@ public class AuctionScreen extends Screen {
                 }
             }
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(event, inside);
     }
 
     @Override
@@ -618,7 +623,7 @@ public class AuctionScreen extends Screen {
     // =====================================================
     private ItemStack makeIconStack(String itemId, int count) {
         try {
-            var item = BuiltInRegistries.ITEM.get(ResourceLocation.parse(itemId));
+            var item = BuiltInRegistries.ITEM.getValue(Identifier.parse(itemId));
             return new ItemStack(item, count);
         } catch (Exception e) {
             return ItemStack.EMPTY;
