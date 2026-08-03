@@ -61,7 +61,7 @@ public class ModNetwork {
             BuyPayload.STREAM_CODEC,
             (payload, ctx) -> ctx.enqueueWork(() -> {
                 if (!(ctx.player() instanceof ServerPlayer sp)) return;
-                MarketSavedData data = MarketSavedData.get(sp.serverLevel());
+                MarketSavedData data = MarketSavedData.get(sp.level());
                 boolean ok = data.purchase(sp.getUUID(), sp.getName().getString(), payload.listingId());
                 if (ok) {
                     data.getListing(payload.listingId()).ifPresent(l ->
@@ -84,7 +84,7 @@ public class ModNetwork {
                 if (!(ctx.player() instanceof ServerPlayer sp)) return;
                 if (payload.price() <= 0) return;
 
-                MarketSavedData data = MarketSavedData.get(sp.serverLevel());
+                MarketSavedData data = MarketSavedData.get(sp.level());
 
                 var held = sp.getMainHandItem();
                 if (held.isEmpty()) {
@@ -116,7 +116,7 @@ public class ModNetwork {
             CancelListingPayload.STREAM_CODEC,
             (payload, ctx) -> ctx.enqueueWork(() -> {
                 if (!(ctx.player() instanceof ServerPlayer sp)) return;
-                MarketSavedData data = MarketSavedData.get(sp.serverLevel());
+                MarketSavedData data = MarketSavedData.get(sp.level());
 
                 var opt = data.getListing(payload.listingId());
                 if (opt.isEmpty()) {
@@ -168,8 +168,8 @@ public class ModNetwork {
                 if (!(ctx.player() instanceof ServerPlayer sp)) return;
                 if (payload.amount() <= 0) return;
 
-                AuctionSavedData auctionData = AuctionSavedData.get(sp.serverLevel());
-                MarketSavedData marketData = MarketSavedData.get(sp.serverLevel());
+                AuctionSavedData auctionData = AuctionSavedData.get(sp.level());
+                MarketSavedData marketData = MarketSavedData.get(sp.level());
 
                 long balance = marketData.getBalance(sp.getUUID());
                 if (balance < payload.amount()) {
@@ -196,7 +196,7 @@ public class ModNetwork {
                         "[オークション] " + sp.getName().getString() +
                         " が " + itemName +
                         " に ¥" + String.format("%,d", payload.amount()) + " で入札しました");
-                    sp.getServer().getPlayerList().getPlayers()
+                    sp.level().getServer().getPlayerList().getPlayers()
                         .forEach(p -> p.sendSystemMessage(broadcast));
                 } else {
                     sendError(sp, "入札失敗（終了済み or 金額不足）", COLOR_ERROR);

@@ -4,13 +4,13 @@ import com.example.auction.AuctionMod;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /** S→C: オークションGUIを開く命令 */
 public record OpenAuctionPayload() implements CustomPacketPayload {
 
-    public static final ResourceLocation ID_LOC =
-        ResourceLocation.fromNamespaceAndPath(AuctionMod.MOD_ID, "open_auction");
+    public static final Identifier ID_LOC =
+        Identifier.fromNamespaceAndPath(AuctionMod.MOD_ID, "open_auction");
 
     public static final CustomPacketPayload.Type<OpenAuctionPayload> TYPE =
         new CustomPacketPayload.Type<>(ID_LOC);

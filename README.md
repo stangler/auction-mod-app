@@ -1,8 +1,11 @@
-# AuctionMod - NeoForge 1.21.1
+# AuctionMod - NeoForge 26.1.2.84
+
+フリーマーケットとオークションを実装した Minecraft モッド。
 
 ## 環境
-- Windows 11 + Docker Desktop + VS Code DevContainer
-- Java 21 / NeoForge 21.1.172 / Minecraft 1.21.1
+- Windows 11
+- Java 25 / NeoForge 26.1.2.84 / Minecraft 26.1.2
+- Gradle 9.6.1（Gradle Wrapper）
 
 ---
 
@@ -10,9 +13,8 @@
 
 ### 1. 前提ツール
 ```
-Docker Desktop (Windows)  → https://www.docker.com/products/docker-desktop
-VS Code                   → https://code.visualstudio.com
-Dev Containers 拡張        → VS Code拡張でインストール
+JDK 25        → https://adoptium.net/
+Git           → https://git-scm.com/
 ```
 
 ### 2. プロジェクト起動
@@ -20,45 +22,40 @@ Dev Containers 拡張        → VS Code拡張でインストール
 # このフォルダをVS Codeで開く
 code .
 
-# 右下に「Reopen in Container」ポップアップ → クリック
-# または Ctrl+Shift+P → "Dev Containers: Reopen in Container"
+# ターミナルでビルド
+.\gradlew.bat build
 ```
 
-### 3. ビルド（コンテナ内）
+### 3. ゲーム起動
 ```bash
-./gradlew build
+# クライアント起動（開発用）
+.\gradlew.bat runClient
 
-# キャッシュ起因の問題が出た場合はクリーンから
-rm -rf ~/.gradle/caches/ build/ .gradle/
-./gradlew build
+# サーバー起動（開発用）
+.\gradlew.bat runServer
 ```
 
-### 4. ゲーム起動（注意）
-DevContainer内からMinecraftクライアントは起動不可（GUI非対応）。  
-**ビルドのみDevContainerで実施** → 生成された `build/libs/*.jar` をホスト側の  
-`.minecraft/mods/` にコピーして通常のMinecraftランチャーで起動。
-
+### 4. 配布用 jar
 ```bash
 # 出力先
 build/libs/auctionmod-1.0.0.jar
 ```
+
+生成された jar を `.minecraft/mods/` にコピーして通常の Minecraft ランチャーで起動。
 
 ---
 
 ## フォルダ構成
 ```
 auction-mod/
-├── .devcontainer/
-│   ├── devcontainer.json
-│   └── Dockerfile
 ├── src/main/java/com/example/auction/
 │   ├── AuctionMod.java                  # メインクラス・イベント登録
 │   ├── ModItems.java                    # 日本円コイン
 │   ├── ModMenuTypes.java                # GUIメニュー登録（フリマ・オークション）
 │   ├── auction/
-│   │   ├── AuctionListing.java          # 出品データ（入札・期限管理）
+│   │   ├── AuctionListing.java          # 出品データ（入札・期限管理・Codec）
 │   │   ├── AuctionMenu.java             # オークションコンテナメニュー
-│   │   ├── AuctionSavedData.java        # オークションデータ永続化
+│   │   ├── AuctionSavedData.java        # オークションデータ永続化（SavedDataType + Codec）
 │   │   └── AuctionTickHandler.java      # 落札処理・全員sync（100tick毎）・流札返却/破棄・自動再出品・モブ落札処理
 │   ├── command/
 │   │   ├── MarketCommand.java           # /market open|balance|give
@@ -67,17 +64,17 @@ auction-mod/
 │   │   ├── AuctionScreen.java           # オークションGUI（一覧/入札タブ・出品タブ・期間選択UI・手数料プレビュー）
 │   │   ├── FleaMarketScreen.java        # フリマGUI（出品一覧タブ・出品するタブ・カテゴリフィルタ・手持ちアイテムプレビュー・手数料プレビュー・自分の出品管理）
 │   │   ├── ClientNetworkHandler.java    # クライアント側パケット処理・GUIエラーラベル表示
-│   │   └── ItemCategory.java           # アイテムカテゴリ動的判定（武器/防具/道具/食料/ブロック/その他）
+│   │   └── ItemCategory.java            # アイテムカテゴリ動的判定（武器/防具/道具/食料/ブロック/その他）
 │   ├── data/
 │   │   └── MarketSavedData.java         # 残高・出品・ボーナス・未渡しアイテムキュー管理（永続化）・手数料計算
 │   ├── event/
 │   │   └── PlayerLoginHandler.java      # 初回ログインボーナス付与・未渡しアイテム配送
 │   ├── market/
-│   │   ├── MarketListing.java           # フリマ出品データ
+│   │   ├── MarketListing.java           # フリマ出品データ（Codec）
 │   │   ├── FleaMarketMenu.java          # フリマコンテナメニュー
 │   │   ├── MobListingGenerator.java     # モブ自動出品（ワールドロード時・落札/流札/購入後の自動補充）
-│   │   ├── MobConstants.java            # モブ名定数・UUID生成・モブ判定（Phase 11）
-│   │   └── MobBuyerScheduler.java       # モブ自動購入・入札スケジューラ（60秒毎・Phase 11）
+│   │   ├── MobConstants.java            # モブ名定数・UUID生成・モブ判定
+│   │   └── MobBuyerScheduler.java       # モブ自動購入・入札スケジューラ（60秒毎）
 │   └── network/
 │       ├── ModNetwork.java              # パケット登録・ハンドラ（入札通知・フリマ購入後自動補充）
 │       ├── MarketPackets.java           # 旧パケット定義（後方互換）
@@ -90,11 +87,12 @@ auction-mod/
 │           ├── SellPayload.java         # C→S: フリマ出品
 │           ├── BidPayload.java          # C→S: オークション入札
 │           ├── SellAuctionPayload.java  # C→S: オークション出品（開始価格・出品期間）
-│           ├── CancelListingPayload.java  # C→S: フリマ出品取消（Phase 10）
-│           ├── CancelAuctionPayload.java  # C→S: オークション出品取消（Phase 10）
-│           └── ErrorMessagePayload.java   # S→C: GUIエラーラベル表示（Phase 10）
+│           ├── CancelListingPayload.java  # C→S: フリマ出品取消
+│           ├── CancelAuctionPayload.java  # C→S: オークション出品取消
+│           └── ErrorMessagePayload.java   # S→C: GUIエラーラベル表示
 ├── build.gradle
 ├── gradle.properties
+├── gradlew.bat
 └── settings.gradle
 ```
 
@@ -138,20 +136,34 @@ auction-mod/
 
 ---
 
-## 設計メモ（NeoForge 1.21.1 確定API）
+## 設計メモ（NeoForge 26.1.2.84 確定API）
 
 ```java
-// SavedData
-SavedData.save(CompoundTag, HolderLookup.Provider)
-SavedData.Factory<T> + computeIfAbsent(FACTORY, NAME)
+// SavedData（Codec ベースに変更）
+SavedDataType<T> TYPE = new SavedDataType<>(
+    Identifier.fromNamespaceAndPath("auctionmod", "data"),
+    MarketSavedData::new,
+    CODEC,
+    null
+);
+level.getServer().overworld().getDataStorage().computeIfAbsent(TYPE);
 
-// ItemStack
-ItemStack.save(registries)
-ItemStack.parseOptional(registries, tag)
+// ItemStack（Codec ベースに変更）
+ItemStack.CODEC.encodeStart(ops, stack)  // 保存
+ItemStack.CODEC.parse(ops, tag)          // 読込
+RegistryOps<Tag> ops = RegistryOps.create(NbtOps.INSTANCE, registries);
+
+// リソースID
+Identifier.fromNamespaceAndPath("auctionmod", "sync_auction")
 
 // ネットワーク
 RegisterPayloadHandlersEvent / PayloadRegistrar
-IPayloadContext
+ClientPacketDistributor.sendToServer(payload)  // クライアント→サーバー
+
+// GUI（GuiGraphicsExtractor ベースに変更）
+Screen.extractRenderState(GuiGraphicsExtractor, int, int, float)
+Screen.extractBackground(GuiGraphicsExtractor, int, int, float)
+mouseClicked(MouseButtonEvent, boolean)
 
 // Tick
 LevelTickEvent.Post
@@ -162,7 +174,7 @@ LevelTickEvent.Post
 ## 実装フェーズ
 
 ### ✅ Phase 1: 環境 + データ基盤
-- Devcontainer構築
+- ビルド環境構築
 - SavedData（出品・残高）
 - モブ初期出品ロジック
 
@@ -198,7 +210,7 @@ LevelTickEvent.Post
 ### ✅ Phase 7: GUI改善・通知
 - **フリマ自動再出品**: 購入後に `MobListingGenerator.replenishMarketIfNeeded()` を呼び出し、モブ出品が8件を下回った場合に自動補充
 - **入札チャット通知**: 入札成功時に全プレイヤーへ `[オークション] プレイヤー名 が アイテム名 に ¥X,XXX で入札しました` を送信
-- **アイテムアイコン表示**: `SyncListingsPayload` / `SyncAuctionPayload` の DTO に `itemId`（レジストリキー）を追加。フリマ・オークション画面の各行に `GuiGraphics.renderItem()` で16x16アイコンを描画
+- **アイテムアイコン表示**: `SyncListingsPayload` / `SyncAuctionPayload` の DTO に `itemId`（レジストリキー）を追加。フリマ・オークション画面の各行に `GuiGraphicsExtractor.item()` で16x16アイコンを描画
 
 ### ✅ Phase 8: カテゴリフィルタ・オークション出品期限
 
@@ -283,6 +295,7 @@ LevelTickEvent.Post
 - `isMobBidder(String)` 追加（`MobConstants.isMobName()` 使用）
 - モブ落札時: 残高控除・アイテム破棄（ゲーム内に実体なし）・ログ出力
 - プレイヤー落札時: 従来通り（オンライン直接付与・オフラインキュー）
+
 ### ✅ Phase 12: 出品時残高チェック撤廃
 
 **バグ修正: 残高¥0でも出品可能に**
@@ -306,3 +319,29 @@ LevelTickEvent.Post
 - 出品ボタン（手持ちスタック丸ごと・サーバー側取得は従来通り）
 - 自分の出品中リスト（最大3件・取消ボタン付き）
 - 下部固定出品エリアを廃止してタブ内に統合
+
+### ✅ Phase 14: NeoForge 26.1.2.84 移行
+
+**ビルド環境**
+- `gradlew.bat` を新規作成（Windows でビルド可能に）
+- `build.gradle`: `programArgument` → `argument` に変更（NeoGradle 7.1 非推奨警告解消）
+
+**API 移行**
+- `ResourceLocation` → `Identifier` にリネーム（全ペイロード11ファイル）
+- `SavedData.Factory` → `SavedDataType` + Codec ベースに全面書き換え
+- `CompoundTag.getXxx()` → `getXxxOr()`（Optional ベース）に変更
+- `putUUID/getUUID` 廃止 → 文字列でUUIDを保存
+- `ItemStack.save/parseOptional` 廃止 → `ItemStack.CODEC` + `RegistryOps` で保存
+- `GuiGraphics` → `GuiGraphicsExtractor` に変更
+- `Screen.render()` → `extractRenderState()` に変更
+- `mouseClicked(double,double,int)` → `mouseClicked(MouseButtonEvent, boolean)` に変更
+- `PacketDistributor.sendToServer` → `ClientPacketDistributor.sendToServer` に変更
+- `ServerPlayer.serverLevel()` → `level()` に変更
+- `getProfileCache()` 廃止 → オフラインUUID方式（`OfflinePlayer:` プレフィックス）に変更
+- `SwordItem`/`ArmorItem`/`DiggerItem` 廃止 → `DataComponents` ベースの判定に変更
+
+**ランタイムエラー修正（移行後の追加修正）**
+- `gradle.properties`: `minecraft_version` を `1.21.2` → `26.1.2` に修正、`minecraft_version_range` を `[1.21.2,1.22)` → `[26.1,)` に修正（NeoForge 26.x では Minecraft バージョンが `26.1.2` として報告されるため）
+- `MobListingGenerator.java`: `ItemStack` を `static final` フィールドで生成していたのを呼び出し時生成メソッドに変更（クラスロード時「Components not bound yet」エラーを解消）
+- `ModItems.java`: `ITEMS.register(Supplier)` → `ITEMS.registerItem(Function<Item.Properties, Item>)` に変更（NeoForge 26.x では `Item.Properties` にアイテムIDを設定してから `Item` を生成する必要があるため）
+- `AuctionScreen.java` / `FleaMarketScreen.java`: テキスト色をRGB形式（0xRRGGBB）からARGB形式（0xFFRRGGBB）に変更（NeoForge 26.x の `GuiGraphicsExtractor` では色がARGB形式として解釈されるため、アルファチャンネルが0x00で文字が透明になっていた問題を解消）

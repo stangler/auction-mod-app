@@ -4,15 +4,15 @@ import com.example.auction.AuctionMod;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.UUID;
 
 /** C→S: オークション入札リクエスト */
 public record BidPayload(UUID listingId, long amount) implements CustomPacketPayload {
 
-    public static final ResourceLocation ID_LOC =
-        ResourceLocation.fromNamespaceAndPath(AuctionMod.MOD_ID, "bid");
+    public static final Identifier ID_LOC =
+        Identifier.fromNamespaceAndPath(AuctionMod.MOD_ID, "bid");
 
     public static final CustomPacketPayload.Type<BidPayload> TYPE =
         new CustomPacketPayload.Type<>(ID_LOC);

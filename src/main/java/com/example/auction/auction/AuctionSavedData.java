@@ -1,22 +1,36 @@
 package com.example.auction.auction;
 
-import net.minecraft.core.HolderLookup;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.Tag;
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.level.saveddata.SavedDataType;
 
 import java.util.*;
 
 public class AuctionSavedData extends SavedData {
 
-    private static final String NAME = "auctionmod_auctions";
-    private static final SavedData.Factory<AuctionSavedData> FACTORY =
-            new SavedData.Factory<>(
-                    AuctionSavedData::new,
-                    AuctionSavedData::load
-            );
+    private static final Codec<AuctionSavedData> CODEC = RecordCodecBuilder.create(inst -> inst.group(
+        AuctionListing.CODEC.listOf().fieldOf("listings").forGetter(data ->
+            new ArrayList<>(data.listings.values()))
+    ).apply(inst, AuctionSavedData::fromList));
+
+    public static final SavedDataType<AuctionSavedData> TYPE = new SavedDataType<>(
+        Identifier.fromNamespaceAndPath("auctionmod", "auctions"),
+        AuctionSavedData::new,
+        CODEC,
+        null
+    );
+
+    /** Codec デシリアライズ用 */
+    private static AuctionSavedData fromList(List<AuctionListing> listings) {
+        AuctionSavedData data = new AuctionSavedData();
+        for (AuctionListing l : listings) {
+            data.listings.put(l.id, l);
+        }
+        return data;
+    }
 
     // id → listing
     private final Map<UUID, AuctionListing> listings = new LinkedHashMap<>();
@@ -27,7 +41,7 @@ public class AuctionSavedData extends SavedData {
         return level.getServer()
                     .overworld()
                     .getDataStorage()
-                    .computeIfAbsent(FACTORY, NAME);
+                    .computeIfAbsent(TYPE);
     }
 
     // ── CRUD ─────────────────────────────────────────
@@ -63,27 +77,5 @@ public class AuctionSavedData extends SavedData {
         boolean ok = listing.placeBid(bidderName, amount);
         if (ok) setDirty();
         return ok;
-    }
-
-    // ── NBT ──────────────────────────────────────────
-
-    @Override
-    public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
-        ListTag list = new ListTag();
-        for (AuctionListing l : listings.values()) {
-            list.add(l.save(registries));
-        }
-        tag.put("auctions", list);
-        return tag;
-    }
-
-    private static AuctionSavedData load(CompoundTag tag, HolderLookup.Provider registries) {
-        AuctionSavedData data = new AuctionSavedData();
-        ListTag list = tag.getList("auctions", Tag.TAG_COMPOUND);
-        for (int i = 0; i < list.size(); i++) {
-            AuctionListing l = AuctionListing.load(list.getCompound(i), registries);
-            data.listings.put(l.id, l);
-        }
-        return data;
     }
 }

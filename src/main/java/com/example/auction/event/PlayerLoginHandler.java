@@ -18,7 +18,7 @@ public class PlayerLoginHandler {
     public void onPlayerLogin(PlayerEvent.PlayerLoggedInEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer sp)) return;
 
-        MarketSavedData data = MarketSavedData.get(sp.serverLevel());
+        MarketSavedData data = MarketSavedData.get(sp.level());
 
         // 初回のみボーナス付与
         if (!data.hasReceivedBonus(sp.getUUID())) {

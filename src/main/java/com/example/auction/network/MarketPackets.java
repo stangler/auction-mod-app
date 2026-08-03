@@ -32,7 +32,7 @@ public class MarketPackets {
         public void handle(IPayloadContext ctx) {
             ctx.enqueueWork(() -> {
                 if (!(ctx.player() instanceof ServerPlayer sp)) return;
-                MarketSavedData data = MarketSavedData.get(sp.serverLevel());
+                MarketSavedData data = MarketSavedData.get(sp.level());
                 boolean success = data.purchase(sp.getUUID(), sp.getName().getString(), listingId);
 
                 if (success) {
@@ -54,10 +54,10 @@ public class MarketPackets {
         ctx.enqueueWork(() -> {
             if (!(ctx.player() instanceof ServerPlayer sp)) return;
 
-            MarketSavedData marketData = MarketSavedData.get(sp.serverLevel());
+            MarketSavedData marketData = MarketSavedData.get(sp.level());
 
             // ── 出品上限チェック（プレイヤーあたり3件まで） ────────
-            AuctionSavedData auctionData = AuctionSavedData.get(sp.serverLevel());
+            AuctionSavedData auctionData = AuctionSavedData.get(sp.level());
             long myListings = auctionData.getAll().stream()
                 .filter(l -> !l.isExpired() && l.sellerUUID.equals(sp.getUUID()))
                 .count();
@@ -105,7 +105,7 @@ public class MarketPackets {
                 listing.stack.getHoverName().getString(), sp.getName().getString(), label);
 
             // ── 全プレイヤーへ同期 ─────────────────────────────
-            sp.getServer().getPlayerList().getPlayers().forEach(p ->
+            sp.level().getServer().getPlayerList().getPlayers().forEach(p ->
                 ModNetwork.syncAuctionToPlayer(p, auctionData, marketData));
         });
     }
@@ -117,8 +117,8 @@ public class MarketPackets {
         ctx.enqueueWork(() -> {
             if (!(ctx.player() instanceof ServerPlayer sp)) return;
 
-            AuctionSavedData auctionData = AuctionSavedData.get(sp.serverLevel());
-            MarketSavedData marketData   = MarketSavedData.get(sp.serverLevel());
+            AuctionSavedData auctionData = AuctionSavedData.get(sp.level());
+            MarketSavedData marketData   = MarketSavedData.get(sp.level());
 
             var opt = auctionData.getListing(payload.listingId());
             if (opt.isEmpty()) {
@@ -155,7 +155,7 @@ public class MarketPackets {
                 itemName, sp.getName().getString());
 
             // 全プレイヤーへ同期
-            sp.getServer().getPlayerList().getPlayers()
+            sp.level().getServer().getPlayerList().getPlayers()
                 .forEach(p -> ModNetwork.syncAuctionToPlayer(p, auctionData, marketData));
         });
     }

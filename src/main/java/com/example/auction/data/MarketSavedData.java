@@ -1,19 +1,59 @@
 package com.example.auction.data;
 
 import com.example.auction.market.MarketListing;
-import net.minecraft.core.HolderLookup;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.Tag;
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.level.saveddata.SavedDataType;
 
 import java.util.*;
 
 public class MarketSavedData extends SavedData {
 
-    private static final String DATA_NAME = "auctionmod_data";
+    private static final Codec<Map<UUID, Long>> BALANCES_CODEC =
+        Codec.unboundedMap(Codec.STRING.xmap(UUID::fromString, UUID::toString), Codec.LONG);
+
+    private static final Codec<List<ItemStack>> ITEM_LIST_CODEC =
+        ItemStack.CODEC.listOf();
+
+    private static final Codec<Map<UUID, List<ItemStack>>> PENDING_CODEC =
+        Codec.unboundedMap(Codec.STRING.xmap(UUID::fromString, UUID::toString), ITEM_LIST_CODEC);
+
+    private static final Codec<MarketSavedData> CODEC = RecordCodecBuilder.create(inst -> inst.group(
+        MarketListing.CODEC.listOf().fieldOf("listings").forGetter(data ->
+            new ArrayList<>(data.listings.values())),
+        BALANCES_CODEC.fieldOf("balances").forGetter(data -> data.balances),
+        Codec.STRING.xmap(UUID::fromString, UUID::toString)
+            .listOf().fieldOf("bonusReceived").forGetter(data ->
+                new ArrayList<>(data.bonusReceived)),
+        Codec.unboundedMap(Codec.STRING.xmap(UUID::fromString, UUID::toString), ITEM_LIST_CODEC)
+            .fieldOf("pendingItems").forGetter(data -> data.pendingItems)
+    ).apply(inst, MarketSavedData::fromParts));
+
+    public static final SavedDataType<MarketSavedData> TYPE = new SavedDataType<>(
+        Identifier.fromNamespaceAndPath("auctionmod", "data"),
+        MarketSavedData::new,
+        CODEC,
+        null
+    );
+
+    /** Codec デシリアライズ用 */
+    private static MarketSavedData fromParts(List<MarketListing> listings,
+                                             Map<UUID, Long> balances,
+                                             List<UUID> bonusReceived,
+                                             Map<UUID, List<ItemStack>> pendingItems) {
+        MarketSavedData data = new MarketSavedData();
+        for (MarketListing l : listings) {
+            data.listings.put(l.getListingId(), l);
+        }
+        data.balances.putAll(balances);
+        data.bonusReceived.addAll(bonusReceived);
+        data.pendingItems.putAll(pendingItems);
+        return data;
+    }
 
     private final Map<UUID, MarketListing> listings = new LinkedHashMap<>();
     private final Map<UUID, Long> balances = new HashMap<>();
@@ -22,22 +62,11 @@ public class MarketSavedData extends SavedData {
     /** オフライン落札者へのアイテム未渡しキュー */
     private final Map<UUID, List<ItemStack>> pendingItems = new HashMap<>();
 
-    // =========================================================
-    // Factory (1.21.1 API)
-    // =========================================================
-
-    public static final SavedData.Factory<MarketSavedData> FACTORY =
-        new SavedData.Factory<>(
-            MarketSavedData::new,
-            MarketSavedData::load,
-            null
-        );
-
     public static MarketSavedData get(ServerLevel level) {
         return level.getServer()
             .overworld()
             .getDataStorage()
-            .computeIfAbsent(FACTORY, DATA_NAME);
+            .computeIfAbsent(TYPE);
     }
 
     // =========================================================
@@ -145,86 +174,5 @@ public class MarketSavedData extends SavedData {
     public void clearPendingItems(UUID playerId) {
         pendingItems.remove(playerId);
         setDirty();
-    }
-
-    // =========================================================
-    // NBT (1.21.1: save takes HolderLookup.Provider)
-    // =========================================================
-
-    @Override
-    public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
-        // 出品一覧
-        ListTag listingsTag = new ListTag();
-        listings.values().forEach(l -> listingsTag.add(l.toNbt(registries)));
-        tag.put("listings", listingsTag);
-
-        // 残高
-        CompoundTag balancesTag = new CompoundTag();
-        balances.forEach((uuid, bal) -> balancesTag.putLong(uuid.toString(), bal));
-        tag.put("balances", balancesTag);
-
-        // 初回ボーナス受取済みUUID一覧
-        ListTag bonusTag = new ListTag();
-        for (UUID uuid : bonusReceived) {
-            CompoundTag entry = new CompoundTag();
-            entry.putUUID("uuid", uuid);
-            bonusTag.add(entry);
-        }
-        tag.put("bonusReceived", bonusTag);
-
-        // 未渡しアイテムキュー
-        CompoundTag pendingTag = new CompoundTag();
-        pendingItems.forEach((uuid, items) -> {
-            ListTag itemList = new ListTag();
-            for (ItemStack stack : items) {
-                itemList.add(stack.save(registries));
-            }
-            pendingTag.put(uuid.toString(), itemList);
-        });
-        tag.put("pendingItems", pendingTag);
-
-        return tag;
-    }
-
-    public static MarketSavedData load(CompoundTag tag, HolderLookup.Provider registries) {
-        MarketSavedData data = new MarketSavedData();
-
-        // 出品一覧
-        ListTag listingsTag = tag.getList("listings", Tag.TAG_COMPOUND);
-        for (int i = 0; i < listingsTag.size(); i++) {
-            MarketListing listing = MarketListing.fromNbt(listingsTag.getCompound(i), registries);
-            data.listings.put(listing.getListingId(), listing);
-        }
-
-        // 残高
-        CompoundTag balancesTag = tag.getCompound("balances");
-        for (String key : balancesTag.getAllKeys()) {
-            data.balances.put(UUID.fromString(key), balancesTag.getLong(key));
-        }
-
-        // 初回ボーナス受取済み
-        ListTag bonusTag = tag.getList("bonusReceived", Tag.TAG_COMPOUND);
-        for (int i = 0; i < bonusTag.size(); i++) {
-            data.bonusReceived.add(bonusTag.getCompound(i).getUUID("uuid"));
-        }
-
-        // 未渡しアイテムキュー
-        CompoundTag pendingTag = tag.getCompound("pendingItems");
-        for (String key : pendingTag.getAllKeys()) {
-            UUID uuid = UUID.fromString(key);
-            ListTag itemList = pendingTag.getList(key, Tag.TAG_COMPOUND);
-            List<ItemStack> items = new ArrayList<>();
-            for (int i = 0; i < itemList.size(); i++) {
-                ItemStack stack = ItemStack.parseOptional(registries, itemList.getCompound(i));
-                if (!stack.isEmpty()) {
-                    items.add(stack);
-                }
-            }
-            if (!items.isEmpty()) {
-                data.pendingItems.put(uuid, items);
-            }
-        }
-
-        return data;
     }
 }

@@ -4,7 +4,7 @@ import com.example.auction.AuctionMod;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * C→S: 出品リクエスト
@@ -12,8 +12,8 @@ import net.minecraft.resources.ResourceLocation;
  */
 public record SellPayload(long price) implements CustomPacketPayload {
 
-    public static final ResourceLocation ID_LOC =
-        ResourceLocation.fromNamespaceAndPath(AuctionMod.MOD_ID, "sell");
+    public static final Identifier ID_LOC =
+        Identifier.fromNamespaceAndPath(AuctionMod.MOD_ID, "sell");
 
     public static final CustomPacketPayload.Type<SellPayload> TYPE =
         new CustomPacketPayload.Type<>(ID_LOC);

@@ -3,7 +3,7 @@ package com.example.auction.network.payload;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /**
  * S→C: GUI 内エラーラベル表示用
@@ -14,7 +14,7 @@ public record ErrorMessagePayload(String message, int color)
         implements CustomPacketPayload {
 
     public static final Type<ErrorMessagePayload> TYPE =
-        new Type<>(ResourceLocation.fromNamespaceAndPath("auctionmod", "error_message"));
+        new Type<>(Identifier.fromNamespaceAndPath("auctionmod", "error_message"));
 
     public static final StreamCodec<FriendlyByteBuf, ErrorMessagePayload> STREAM_CODEC =
         StreamCodec.of(

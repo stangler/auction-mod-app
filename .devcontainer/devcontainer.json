@@ -1,3 +1,6 @@
+// DevContainer is disabled. This project now uses the local Java 25 toolchain.
+// Re-enable by uncommenting the original configuration below.
+/*
 {
   "name": "Minecraft NeoForge 1.21.1",
   "build": {
@@ -25,3 +28,5 @@
     "JAVA_HOME": "/usr/lib/jvm/msopenjdk-current"
   }
 }
+*/
+{}
